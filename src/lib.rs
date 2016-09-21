@@ -13,6 +13,7 @@ use brdgme_game::{Gamer, GameError, Log};
 pub mod corp;
 pub mod board;
 mod render;
+mod parser;
 
 #[derive(Default, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerState {}

@@ -53,7 +53,7 @@ impl Board {
 
 impl Default for Board {
     fn default() -> Self {
-        Board(Vec::with_capacity(SIZE))
+        Board(iter::repeat(Tile::default()).take(SIZE).collect())
     }
 }
 
