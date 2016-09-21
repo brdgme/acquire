@@ -10,6 +10,8 @@ extern crate brdgme_markup;
 
 use brdgme_game::{Gamer, GameError, Log};
 
+pub mod corp;
+pub mod board;
 mod render;
 
 #[derive(Default, PartialEq, Debug, Clone, Serialize, Deserialize)]
