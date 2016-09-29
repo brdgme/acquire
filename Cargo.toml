@@ -10,8 +10,5 @@ brdgme-color = { path = "../color" }
 brdgme-markup = { path = "../markup" }
 brdgme-cmd = { path = "../cmd" }
 combine = { git = "https://github.com/Marwes/combine.git" }
-serde = "^0.8.6"
-serde_macros = "^0.8.6"
-
-[replace]
-"aster:0.26.1" = { git = "https://github.com/jchlapinski/aster" }
+serde = "^0.8.10"
+serde_derive = "^0.8.10"
