@@ -1,12 +1,13 @@
 use super::corp::{self, Corp};
 
 use std::iter;
+use std::ops::Range;
 
 pub const WIDTH: usize = 12;
 pub const HEIGHT: usize = 9;
 pub const SIZE: usize = WIDTH * HEIGHT;
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Tile {
     Empty,
     Discarded,
@@ -20,7 +21,7 @@ impl Default for Tile {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Board(pub Vec<Tile>);
 
 impl Board {
@@ -57,37 +58,59 @@ impl Default for Board {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Default)]
-pub struct Loc(pub usize, pub usize);
+pub fn rows() -> Range<usize> {
+    0..HEIGHT
+}
+
+pub fn cols() -> Range<usize> {
+    0..WIDTH
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+pub struct Loc {
+    pub row: usize,
+    pub col: usize,
+}
 
 impl Loc {
+    pub fn all() -> Vec<Loc> {
+        rows().flat_map(move |r| cols().map(move |c| Loc { row: r, col: c })).collect()
+    }
+
     pub fn neighbours(&self) -> Vec<Loc> {
         let mut n = vec![];
-        if self.0 > 0 {
-            n.push(Loc(self.0 - 1, self.1));
+        if self.col > 0 {
+            n.push(Loc { col: self.col - 1, ..*self });
         }
-        if self.0 < WIDTH - 1 {
-            n.push(Loc(self.0 + 1, self.1));
+        if self.col < WIDTH - 1 {
+            n.push(Loc { col: self.col + 1, ..*self });
         }
-        if self.1 > 0 {
-            n.push(Loc(self.0, self.1 - 1));
+        if self.row > 0 {
+            n.push(Loc { row: self.row - 1, ..*self });
         }
-        if self.1 < HEIGHT - 1 {
-            n.push(Loc(self.0, self.1 + 1));
+        if self.row < HEIGHT - 1 {
+            n.push(Loc { row: self.row + 1, ..*self });
         }
         n
+    }
+
+    pub fn name(&self) -> String {
+        format!("{}{}", ('A' as u8 + self.row as u8) as char, self.col + 1)
     }
 }
 
 impl From<usize> for Loc {
     fn from(u: usize) -> Self {
-        Loc(u % WIDTH, u / WIDTH)
+        Loc {
+            row: u / WIDTH,
+            col: u % WIDTH,
+        }
     }
 }
 
 impl From<Loc> for usize {
     fn from(l: Loc) -> Self {
-        l.1 * WIDTH + l.0
+        l.row * WIDTH + l.col
     }
 }
 

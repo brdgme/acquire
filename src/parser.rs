@@ -32,7 +32,7 @@ pub fn play<I>(input: I) -> ParseResult<Command, I>
 pub fn loc<I>(input: I) -> ParseResult<Loc, I>
     where I: Stream<Item = char>
 {
-    (parser(loc_row), parser(loc_col)).map(|(r, c)| Loc(r, c)).parse_stream(input)
+    (parser(loc_row), parser(loc_col)).map(|(r, c)| Loc { row: r, col: c }).parse_stream(input)
 }
 
 pub fn loc_row<I>(input: I) -> ParseResult<usize, I>

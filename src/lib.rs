@@ -9,28 +9,91 @@ extern crate brdgme_game;
 extern crate brdgme_color;
 extern crate brdgme_markup;
 
-use brdgme_game::{Gamer, GameError, Log};
-
 pub mod corp;
 pub mod board;
 mod render;
 mod parser;
 
-#[derive(Default, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct PlayerState {}
+use rand::{thread_rng, Rng};
+use brdgme_game::{Gamer, GameError, Log};
+use brdgme_markup::ast::{Node as N, Align as A};
+
+use std::collections::HashMap;
+use std::iter::FromIterator;
+
+use corp::Corp;
+use board::{Board, Loc, Tile};
+
+pub const MIN_PLAYERS: usize = 2;
+pub const MAX_PLAYERS: usize = 6;
+pub const STARTING_MONEY: usize = 6000;
+pub const STARTING_SHARES: usize = 25;
+pub const TILE_HAND_SIZE: usize = 6;
 
 #[derive(Default, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct Game {}
+pub struct PubState {
+    pub player: Option<usize>,
+    pub current_player: usize,
+    pub players: HashMap<usize, PubPlayer>,
+    pub board: Board,
+    pub shares: HashMap<Corp, usize>,
+    pub remaining_tiles: usize,
+    pub finished: bool,
+}
+
+#[derive(Default, PartialEq, Debug, Clone, Serialize, Deserialize)]
+pub struct Game {
+    pub current_player: usize,
+    pub players: HashMap<usize, Player>,
+    pub board: Board,
+    pub draw_tiles: Vec<Loc>,
+    pub shares: HashMap<Corp, usize>,
+    pub finished: bool,
+}
 
 impl Gamer for Game {
-    type PlayerState = PlayerState;
+    type PubState = PubState;
 
     fn start(&mut self, players: usize) -> Result<Vec<Log>, GameError> {
-        Err(GameError::Internal("Not implemented".to_string()))
+        if players < MIN_PLAYERS || players > MAX_PLAYERS {
+            return Err(GameError::PlayerCount(MIN_PLAYERS, MAX_PLAYERS, players));
+        }
+
+        // Shuffle up the draw tiles.
+        let mut tiles = Loc::all();
+        thread_rng().shuffle(tiles.as_mut_slice());
+        self.draw_tiles = tiles;
+
+        // Place initial tiles onto the board.
+        for l in self.draw_tiles.drain(0..players) {
+            self.board.set_tile(l.into(), Tile::Unincorporated);
+        }
+
+        // Set starting shares.
+        for c in Corp::iter() {
+            self.shares.insert(*c, STARTING_SHARES);
+        }
+
+        // Setup for each player.
+        for p in 0..players {
+            let mut player = Player::default();
+            player.tiles = self.draw_tiles.drain(0..TILE_HAND_SIZE).collect();
+            self.players.insert(p, player);
+        }
+
+        // Set the start player.
+        self.current_player = (thread_rng().next_u32() as usize) % players;
+
+        Ok(vec![
+           Log::public(vec![
+                N::Player(self.current_player),
+                N::text(" will start the game"),
+           ]),
+        ])
     }
 
     fn is_finished(&self) -> bool {
-        false
+        self.finished
     }
 
     fn winners(&self) -> Vec<usize> {
@@ -38,11 +101,11 @@ impl Gamer for Game {
     }
 
     fn whose_turn(&self) -> Vec<usize> {
-        vec![]
+        vec![self.current_player]
     }
 
-    fn player_state(&self, player: Option<usize>) -> Self::PlayerState {
-        PlayerState::default()
+    fn pub_state(&self, player: Option<usize>) -> Self::PubState {
+        PubState { player: player, ..self.to_owned().into() }
     }
 
     fn command(&mut self,
@@ -52,6 +115,54 @@ impl Gamer for Game {
                -> Result<(Vec<Log>, String), GameError> {
         Err(GameError::Internal("Not implemented".to_string()))
     }
+}
+
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
+pub struct Player {
+    pub money: usize,
+    pub shares: HashMap<Corp, usize>,
+    pub tiles: Vec<Loc>,
+}
+
+impl Default for Player {
+    fn default() -> Self {
+        Player {
+            money: STARTING_MONEY,
+            shares: HashMap::new(),
+            tiles: vec![],
+        }
+    }
+}
+
+impl Into<PubState> for Game {
+    fn into(self) -> PubState {
+        PubState {
+            player: None,
+            current_player: self.current_player,
+            players: HashMap::from_iter(self.players
+                .iter()
+                .map(|(k, v)| (*k, v.to_owned().into()))),
+            board: self.board,
+            shares: self.shares,
+            remaining_tiles: self.draw_tiles.len(),
+            finished: self.finished,
+        }
+    }
+}
+
+impl Into<PubPlayer> for Player {
+    fn into(self) -> PubPlayer {
+        PubPlayer {
+            money: self.money,
+            shares: self.shares,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PubPlayer {
+    pub money: usize,
+    pub shares: HashMap<Corp, usize>,
 }
 
 #[cfg(test)]

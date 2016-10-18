@@ -1,7 +1,11 @@
+use brdgme_color::*;
+
+use std::slice::Iter;
+
 pub const SAFE_SIZE: usize = 11;
 pub const GAME_END_SIZE: usize = 41;
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Corp {
     Worldwide,
     Sackson,
@@ -11,6 +15,14 @@ pub enum Corp {
     Continental,
     Tower,
 }
+
+static CORPS: [Corp; 7] = [Corp::Worldwide,
+                           Corp::Sackson,
+                           Corp::Festival,
+                           Corp::Imperial,
+                           Corp::American,
+                           Corp::Continental,
+                           Corp::Tower];
 
 fn additional_value(size: usize) -> usize {
     match size {
@@ -27,16 +39,39 @@ fn additional_value(size: usize) -> usize {
 }
 
 impl Corp {
+    pub fn iter() -> Iter<'static, Corp> {
+        CORPS.into_iter()
+    }
+
     pub fn base_value(self) -> usize {
-        use self::Corp::*;
         match self {
-            Worldwide | Sackson => 200,
-            Festival | Imperial | American => 300,
-            Continental | Tower => 400,
+            Corp::Worldwide | Corp::Sackson => 200,
+            Corp::Festival | Corp::Imperial | Corp::American => 300,
+            Corp::Continental | Corp::Tower => 400,
         }
     }
 
     pub fn value(self, size: usize) -> usize {
         self.base_value() + additional_value(size)
+    }
+
+    pub fn color(self) -> Color {
+        match self {
+            Corp::Worldwide => PURPLE,
+            Corp::Sackson => DEEP_ORANGE,
+            Corp::Festival => GREEN,
+            Corp::Imperial => YELLOW,
+            Corp::American => BLUE,
+            Corp::Continental => RED,
+            Corp::Tower => BLACK,
+        }
+    }
+
+    pub fn name(self) -> String {
+        format!("{:?}", self)
+    }
+
+    pub fn abbrev(self) -> String {
+        self.name()[..2].to_uppercase()
     }
 }
