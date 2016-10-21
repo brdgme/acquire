@@ -1,6 +1,6 @@
-use combine::{Parser, many1, parser, try};
+use combine::{Parser, many1, parser, try, choice};
 use combine::char::{digit, spaces, string_cmp};
-use combine::combinator::satisfy_map;
+use combine::combinator::{satisfy_map, FnParser};
 use combine::primitives::{Stream, ParseResult};
 
 use brdgme_game::parser::cmp_ignore_case;
@@ -21,12 +21,31 @@ pub enum Command {
     Done,
 }
 
+type FnP<T, I> = FnParser<I, fn(I) -> ParseResult<T, I>>;
+
+pub fn command<I>() -> FnP<Command, I>
+    where I: Stream<Item = char>
+{
+    fn command_<I>(input: I) -> ParseResult<Command, I>
+        where I: Stream<Item = char>
+    {
+        choice([play, done]).parse_stream(input)
+    }
+    parser(command_)
+}
+
 pub fn play<I>(input: I) -> ParseResult<Command, I>
     where I: Stream<Item = char>
 {
     (try(string_cmp("play", cmp_ignore_case)), spaces(), parser(loc))
         .map(|(_, _, l)| Command::Play(l))
         .parse_stream(input)
+}
+
+pub fn done<I>(input: I) -> ParseResult<Command, I>
+    where I: Stream<Item = char>
+{
+    try(string_cmp("done", cmp_ignore_case)).map(|_| Command::Done).parse_stream(input)
 }
 
 pub fn loc<I>(input: I) -> ParseResult<Loc, I>

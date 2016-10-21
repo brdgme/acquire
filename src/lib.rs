@@ -15,6 +15,7 @@ mod render;
 mod parser;
 
 use rand::{thread_rng, Rng};
+use combine::Parser;
 use brdgme_game::{Gamer, GameError, Log};
 use brdgme_markup::ast::{Node as N, Align as A};
 
@@ -23,6 +24,7 @@ use std::iter::FromIterator;
 
 use corp::Corp;
 use board::{Board, Loc, Tile};
+use parser::Command;
 
 pub const MIN_PLAYERS: usize = 2;
 pub const MAX_PLAYERS: usize = 6;
@@ -113,6 +115,50 @@ impl Gamer for Game {
                input: &str,
                players: &[String])
                -> Result<(Vec<Log>, String), GameError> {
+        match parser::command().parse(input) {
+            Ok((Command::Play(loc), remaining)) => {
+                self.play(player, loc).map(|l| (l, remaining.to_string()))
+            }
+            Ok((Command::Buy(n, corp), remaining)) => {
+                self.buy(player, n, corp).map(|l| (l, remaining.to_string()))
+            }
+            Ok((Command::Done, remaining)) => self.done(player).map(|l| (l, remaining.to_string())),
+            Ok((Command::Merge(corp, into), remaining)) => {
+                self.merge(player, corp, into).map(|l| (l, remaining.to_string()))
+            }
+            Ok((Command::Sell(n), remaining)) => {
+                self.sell(player, n).map(|l| (l, remaining.to_string()))
+            }
+            Ok((Command::Trade(n), remaining)) => {
+                self.trade(player, n).map(|l| (l, remaining.to_string()))
+            }
+            Err(e) => Err(brdgme_game::parser::to_game_error(e)),
+        }
+    }
+}
+
+impl Game {
+    pub fn play(&mut self, player: usize, loc: Loc) -> Result<Vec<Log>, GameError> {
+        Err(GameError::Internal("Not implemented".to_string()))
+    }
+
+    pub fn buy(&mut self, player: usize, n: usize, corp: Corp) -> Result<Vec<Log>, GameError> {
+        Err(GameError::Internal("Not implemented".to_string()))
+    }
+
+    pub fn done(&mut self, player: usize) -> Result<Vec<Log>, GameError> {
+        Err(GameError::Internal("Not implemented".to_string()))
+    }
+
+    pub fn merge(&mut self, player: usize, corp: Corp, into: Corp) -> Result<Vec<Log>, GameError> {
+        Err(GameError::Internal("Not implemented".to_string()))
+    }
+
+    pub fn sell(&mut self, player: usize, n: usize) -> Result<Vec<Log>, GameError> {
+        Err(GameError::Internal("Not implemented".to_string()))
+    }
+
+    pub fn trade(&mut self, player: usize, n: usize) -> Result<Vec<Log>, GameError> {
         Err(GameError::Internal("Not implemented".to_string()))
     }
 }
