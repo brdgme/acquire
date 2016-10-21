@@ -15,10 +15,11 @@ use std::ascii::AsciiExt;
 pub enum Command {
     Play(Loc),
     Buy(usize, Corp),
+    Done,
     Merge(Corp, Corp),
     Sell(usize),
     Trade(usize),
-    Done,
+    Keep,
 }
 
 type FnP<T, I> = FnParser<I, fn(I) -> ParseResult<T, I>>;

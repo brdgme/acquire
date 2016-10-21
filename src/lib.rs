@@ -1,4 +1,5 @@
-#![feature(proc_macro)]
+#![feature(proc_macro, plugin)]
+#![plugin(clippy)]
 
 extern crate rand;
 extern crate combine;
@@ -32,10 +33,35 @@ pub const STARTING_MONEY: usize = 6000;
 pub const STARTING_SHARES: usize = 25;
 pub const TILE_HAND_SIZE: usize = 6;
 
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
+pub enum Phase {
+    Play(usize),
+    Buy(usize),
+    ChooseMerger(usize),
+    SellOrTrade(usize, Box<Phase>),
+}
+
+impl Phase {
+    pub fn whose_turn(&self) -> usize {
+        match *self {
+            Phase::Play(p) |
+            Phase::Buy(p) |
+            Phase::ChooseMerger(p) |
+            Phase::SellOrTrade(p, _) => p,
+        }
+    }
+}
+
+impl Default for Phase {
+    fn default() -> Self {
+        Phase::Play(0)
+    }
+}
+
 #[derive(Default, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct PubState {
+    pub phase: Phase,
     pub player: Option<usize>,
-    pub current_player: usize,
     pub players: HashMap<usize, PubPlayer>,
     pub board: Board,
     pub shares: HashMap<Corp, usize>,
@@ -45,7 +71,7 @@ pub struct PubState {
 
 #[derive(Default, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct Game {
-    pub current_player: usize,
+    pub phase: Phase,
     pub players: HashMap<usize, Player>,
     pub board: Board,
     pub draw_tiles: Vec<Loc>,
@@ -84,11 +110,12 @@ impl Gamer for Game {
         }
 
         // Set the start player.
-        self.current_player = (thread_rng().next_u32() as usize) % players;
+        let start_player = (thread_rng().next_u32() as usize) % players;
+        self.phase = Phase::Play(start_player);
 
         Ok(vec![
            Log::public(vec![
-                N::Player(self.current_player),
+                N::Player(start_player),
                 N::text(" will start the game"),
            ]),
         ])
@@ -103,7 +130,10 @@ impl Gamer for Game {
     }
 
     fn whose_turn(&self) -> Vec<usize> {
-        vec![self.current_player]
+        match self.is_finished() {
+            true => vec![self.phase.whose_turn()],
+            false => vec![],
+        }
     }
 
     fn pub_state(&self, player: Option<usize>) -> Self::PubState {
@@ -132,34 +162,62 @@ impl Gamer for Game {
             Ok((Command::Trade(n), remaining)) => {
                 self.trade(player, n).map(|l| (l, remaining.to_string()))
             }
+            Ok((Command::Keep, remaining)) => self.keep(player).map(|l| (l, remaining.to_string())),
             Err(e) => Err(brdgme_game::parser::to_game_error(e)),
         }
     }
 }
 
 impl Game {
+    pub fn can_play(&self, player: usize) -> bool {
+        match self.phase {
+            Phase::Play(p) if p == player => true,
+            _ => false,
+        }
+    }
     pub fn play(&mut self, player: usize, loc: Loc) -> Result<Vec<Log>, GameError> {
-        Err(GameError::Internal("Not implemented".to_string()))
+        try!(self.assert_not_finished());
+        try!(self.assert_player_turn(player));
+        if !self.can_play(player) {
+            return Err(GameError::InvalidInput("You can't play a tile right now".to_string()));
+        }
+        panic!("Not implemented");
     }
 
     pub fn buy(&mut self, player: usize, n: usize, corp: Corp) -> Result<Vec<Log>, GameError> {
-        Err(GameError::Internal("Not implemented".to_string()))
+        try!(self.assert_not_finished());
+        try!(self.assert_player_turn(player));
+        panic!("Not implemented");
     }
 
     pub fn done(&mut self, player: usize) -> Result<Vec<Log>, GameError> {
-        Err(GameError::Internal("Not implemented".to_string()))
+        try!(self.assert_not_finished());
+        try!(self.assert_player_turn(player));
+        panic!("Not implemented");
     }
 
     pub fn merge(&mut self, player: usize, corp: Corp, into: Corp) -> Result<Vec<Log>, GameError> {
-        Err(GameError::Internal("Not implemented".to_string()))
+        try!(self.assert_not_finished());
+        try!(self.assert_player_turn(player));
+        panic!("Not implemented");
     }
 
     pub fn sell(&mut self, player: usize, n: usize) -> Result<Vec<Log>, GameError> {
-        Err(GameError::Internal("Not implemented".to_string()))
+        try!(self.assert_not_finished());
+        try!(self.assert_player_turn(player));
+        panic!("Not implemented");
     }
 
     pub fn trade(&mut self, player: usize, n: usize) -> Result<Vec<Log>, GameError> {
-        Err(GameError::Internal("Not implemented".to_string()))
+        try!(self.assert_not_finished());
+        try!(self.assert_player_turn(player));
+        panic!("Not implemented");
+    }
+
+    pub fn keep(&mut self, player: usize) -> Result<Vec<Log>, GameError> {
+        try!(self.assert_not_finished());
+        try!(self.assert_player_turn(player));
+        panic!("Not implemented");
     }
 }
 
@@ -183,8 +241,8 @@ impl Default for Player {
 impl Into<PubState> for Game {
     fn into(self) -> PubState {
         PubState {
+            phase: self.phase,
             player: None,
-            current_player: self.current_player,
             players: HashMap::from_iter(self.players
                 .iter()
                 .map(|(k, v)| (*k, v.to_owned().into()))),
