@@ -122,17 +122,17 @@ mod tests {
     #[test]
     fn usize_into_loc_works() {
         assert_eq!(Loc::default(), 0.into());
-        assert_eq!(Loc(8, 0), 8.into());
-        assert_eq!(Loc(3, 2), 27.into());
-        assert_eq!(Loc(11, 1), 23.into());
+        assert_eq!(Loc { row: 0, col: 8 }, 8.into());
+        assert_eq!(Loc { row: 2, col: 3 }, 27.into());
+        assert_eq!(Loc { row: 1, col: 11 }, 23.into());
     }
 
     #[test]
     fn loc_into_usize_works() {
         assert_eq!(0 as usize, Loc::default().into());
-        assert_eq!(8 as usize, Loc(8, 0).into());
-        assert_eq!(27 as usize, Loc(3, 2).into());
-        assert_eq!(23 as usize, Loc(11, 1).into());
+        assert_eq!(8 as usize, Loc { row: 0, col: 8 }.into());
+        assert_eq!(27 as usize, Loc { row: 2, col: 3 }.into());
+        assert_eq!(23 as usize, Loc { row: 1, col: 11 }.into());
     }
 
     #[test]
@@ -146,7 +146,7 @@ mod tests {
     #[test]
     fn board_indexing_by_loc_works() {
         let b = Board::default();
-        assert_eq!(Tile::Empty, b.get_tile(Loc(4, 5).into()));
+        assert_eq!(Tile::Empty, b.get_tile(Loc { row: 5, col: 4 }.into()));
     }
 
     #[test]

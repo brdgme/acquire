@@ -85,7 +85,9 @@ mod test {
 
     #[test]
     fn loc_works() {
-        assert_eq!(Ok(Loc(0, 0)), parser(loc).parse("a1").map(|x| x.0));
-        assert_eq!(Ok(Loc(8, 11)), parser(loc).parse("I12").map(|x| x.0));
+        assert_eq!(Ok(Loc { row: 0, col: 0 }),
+                   parser(loc).parse("a1").map(|x| x.0));
+        assert_eq!(Ok(Loc { row: 8, col: 11 }),
+                   parser(loc).parse("I12").map(|x| x.0));
     }
 }
