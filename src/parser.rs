@@ -30,7 +30,7 @@ pub fn command<I>() -> FnP<Command, I>
     fn command_<I>(input: I) -> ParseResult<Command, I>
         where I: Stream<Item = char>
     {
-        choice([play, done]).parse_stream(input)
+        choice([play, buy, done]).parse_stream(input)
     }
     parser(command_)
 }
@@ -47,6 +47,30 @@ pub fn done<I>(input: I) -> ParseResult<Command, I>
     where I: Stream<Item = char>
 {
     try(string_cmp("done", cmp_ignore_case)).map(|_| Command::Done).parse_stream(input)
+}
+
+pub fn buy<I>(input: I) -> ParseResult<Command, I>
+    where I: Stream<Item = char>
+{
+    (try(string_cmp("buy", cmp_ignore_case)),
+     spaces(),
+     many1(digit())
+            .and_then(|s: String| s.parse::<usize>())
+            .and_then(|d: usize| if d > 0 {
+                Ok(d)
+            } else {
+                Err(GameError::InvalidInput("amount must be 1 or higher".to_string()))
+            }),
+     spaces(),
+     parser(corp))
+        .map(|(_, _, n, _, c)| Command::Buy(n, c))
+        .parse_stream(input)
+}
+
+pub fn corp<I>(input: I) -> ParseResult<Corp, I>
+    where I: Stream<Item = char>
+{
+    parser(loc).map(|_| Corp::American).parse_stream(input)
 }
 
 pub fn loc<I>(input: I) -> ParseResult<Loc, I>

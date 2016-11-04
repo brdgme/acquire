@@ -131,8 +131,8 @@ impl Gamer for Game {
 
     fn whose_turn(&self) -> Vec<usize> {
         match self.is_finished() {
-            true => vec![self.phase.whose_turn()],
-            false => vec![],
+            false => vec![self.phase.whose_turn()],
+            true => vec![],
         }
     }
 
