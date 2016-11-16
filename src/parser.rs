@@ -3,7 +3,7 @@ use combine::char::{digit, spaces, string_cmp};
 use combine::combinator::{satisfy_map, FnParser};
 use combine::primitives::{Stream, ParseResult};
 
-use brdgme_game::parser::cmp_ignore_case;
+use brdgme_game::parser::{cmp_ignore_case, arg, match_first};
 use brdgme_game::GameError;
 
 use board::Loc;
@@ -70,7 +70,16 @@ pub fn buy<I>(input: I) -> ParseResult<Command, I>
 pub fn corp<I>(input: I) -> ParseResult<Corp, I>
     where I: Stream<Item = char>
 {
-    parser(loc).map(|_| Corp::American).parse_stream(input)
+    arg()
+        .and_then(|a| {
+            match_first(a,
+                        Corp::iter()
+                            .map(|c| (c.name(), c))
+                            .collect::<Vec<(String, &Corp)>>()
+                            .iter())
+                .map(|c| **c)
+        })
+        .parse_stream(input)
 }
 
 pub fn loc<I>(input: I) -> ParseResult<Loc, I>
@@ -112,6 +121,7 @@ pub fn loc_col<I>(input: I) -> ParseResult<usize, I>
 mod test {
     use super::*;
     use board::Loc;
+    use corp::Corp;
     use combine::{parser, Parser};
 
     #[test]
@@ -133,5 +143,12 @@ mod test {
                    parser(loc).parse("a1").map(|x| x.0));
         assert_eq!(Ok(Loc { row: 8, col: 11 }),
                    parser(loc).parse("I12").map(|x| x.0));
+    }
+
+    #[test]
+    fn corp_works() {
+        assert_eq!(Ok((Corp::American, "")), parser(corp).parse("amer"));
+        assert_eq!(Ok((Corp::Sackson, " blash")),
+                   parser(corp).parse("sacks blash"));
     }
 }

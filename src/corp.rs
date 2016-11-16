@@ -1,6 +1,7 @@
 use brdgme_color::*;
 
 use std::slice::Iter;
+use std::collections::HashMap;
 
 pub const SAFE_SIZE: usize = 11;
 pub const GAME_END_SIZE: usize = 41;
