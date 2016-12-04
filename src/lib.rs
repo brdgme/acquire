@@ -1,5 +1,4 @@
 #![feature(proc_macro, plugin)]
-#![plugin(clippy)]
 
 extern crate rand;
 extern crate combine;
@@ -113,12 +112,7 @@ impl Gamer for Game {
         let start_player = (thread_rng().next_u32() as usize) % players;
         self.phase = Phase::Play(start_player);
 
-        Ok(vec![
-           Log::public(vec![
-                N::Player(start_player),
-                N::text(" will start the game"),
-           ]),
-        ])
+        Ok(vec![Log::public(vec![N::Player(start_player), N::text(" will start the game")])])
     }
 
     fn is_finished(&self) -> bool {

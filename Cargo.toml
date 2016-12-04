@@ -4,7 +4,6 @@ version = "0.1.0"
 authors = ["Michael Alexander <beefsack@gmail.com>"]
 
 [dependencies]
-clippy = "*"
 rand = "^0.3.14"
 brdgme-game = { path = "../game" }
 brdgme-color = { path = "../color" }
