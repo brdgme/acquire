@@ -30,7 +30,7 @@ pub fn command<I>() -> FnP<Command, I>
     fn command_<I>(input: I) -> ParseResult<Command, I>
         where I: Stream<Item = char>
     {
-        choice([play, buy, done]).parse_stream(input)
+        choice([play, buy, done, merge, sell, trade, keep]).parse_stream(input)
     }
     parser(command_)
 }
@@ -49,21 +49,73 @@ pub fn done<I>(input: I) -> ParseResult<Command, I>
     try(string_cmp("done", cmp_ignore_case)).map(|_| Command::Done).parse_stream(input)
 }
 
+pub fn keep<I>(input: I) -> ParseResult<Command, I>
+    where I: Stream<Item = char>
+{
+    try(string_cmp("keep", cmp_ignore_case)).map(|_| Command::Keep).parse_stream(input)
+}
+
 pub fn buy<I>(input: I) -> ParseResult<Command, I>
     where I: Stream<Item = char>
 {
     (try(string_cmp("buy", cmp_ignore_case)),
      spaces(),
      many1(digit())
-            .and_then(|s: String| s.parse::<usize>())
-            .and_then(|d: usize| if d > 0 {
-                Ok(d)
-            } else {
-                Err(GameError::InvalidInput("amount must be 1 or higher".to_string()))
-            }),
+         .and_then(|s: String| s.parse::<usize>())
+         .and_then(|d: usize| if d > 0 {
+             Ok(d)
+         } else {
+             Err(GameError::InvalidInput("amount must be 1 or higher".to_string()))
+         }),
      spaces(),
      parser(corp))
         .map(|(_, _, n, _, c)| Command::Buy(n, c))
+        .parse_stream(input)
+}
+
+pub fn merge<I>(input: I) -> ParseResult<Command, I>
+    where I: Stream<Item = char>
+{
+    (try(string_cmp("merge", cmp_ignore_case)),
+     spaces(),
+     parser(corp),
+     spaces(),
+     string_cmp("into", cmp_ignore_case),
+     spaces(),
+     parser(corp))
+        .map(|(_, _, c1, _, _, _, c2)| Command::Merge(c1, c2))
+        .parse_stream(input)
+}
+
+pub fn sell<I>(input: I) -> ParseResult<Command, I>
+    where I: Stream<Item = char>
+{
+    (try(string_cmp("sell", cmp_ignore_case)),
+     spaces(),
+     many1(digit())
+         .and_then(|s: String| s.parse::<usize>())
+         .and_then(|d: usize| if d > 0 {
+             Ok(d)
+         } else {
+             Err(GameError::InvalidInput("amount must be 1 or higher".to_string()))
+         }))
+        .map(|(_, _, n)| Command::Sell(n))
+        .parse_stream(input)
+}
+
+pub fn trade<I>(input: I) -> ParseResult<Command, I>
+    where I: Stream<Item = char>
+{
+    (try(string_cmp("trade", cmp_ignore_case)),
+     spaces(),
+     many1(digit())
+         .and_then(|s: String| s.parse::<usize>())
+         .and_then(|d: usize| if d > 0 {
+             Ok(d)
+         } else {
+             Err(GameError::InvalidInput("amount must be 1 or higher".to_string()))
+         }))
+        .map(|(_, _, n)| Command::Trade(n))
         .parse_stream(input)
 }
 

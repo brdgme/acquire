@@ -26,7 +26,7 @@ pub struct Board(pub Vec<Tile>);
 
 impl Board {
     pub fn get_tile(&self, at: usize) -> Tile {
-        self.0.get(at).cloned().unwrap_or(Tile::default())
+        self.0.get(at).cloned().unwrap_or_default()
     }
 
     pub fn set_tile(&mut self, at: usize, t: Tile) {
@@ -40,8 +40,8 @@ impl Board {
     pub fn corp_size(&self, c: Corp) -> usize {
         self.0
             .iter()
-            .filter(|t| match t {
-                &&Tile::Corp(tc) if tc == c => true,
+            .filter(|t| match **t {
+                Tile::Corp(tc) if tc == c => true,
                 _ => false,
             })
             .count()

@@ -1,4 +1,4 @@
-#![feature(proc_macro, plugin)]
+#![feature(plugin)]
 
 extern crate rand;
 extern crate combine;
@@ -17,7 +17,7 @@ mod parser;
 use rand::{thread_rng, Rng};
 use combine::Parser;
 use brdgme_game::{Gamer, GameError, Log};
-use brdgme_markup::ast::{Node as N, Align as A};
+use brdgme_markup::ast::Node as N;
 
 use std::collections::HashMap;
 use std::iter::FromIterator;
@@ -124,9 +124,10 @@ impl Gamer for Game {
     }
 
     fn whose_turn(&self) -> Vec<usize> {
-        match self.is_finished() {
-            false => vec![self.phase.whose_turn()],
-            true => vec![],
+        if self.is_finished() {
+            vec![]
+        } else {
+            vec![self.phase.whose_turn()]
         }
     }
 
@@ -137,7 +138,7 @@ impl Gamer for Game {
     fn command(&mut self,
                player: usize,
                input: &str,
-               players: &[String])
+               _players: &[String])
                -> Result<(Vec<Log>, String), GameError> {
         match parser::command().parse(input) {
             Ok((Command::Play(loc), remaining)) => {
@@ -169,48 +170,52 @@ impl Game {
             _ => false,
         }
     }
-    pub fn play(&mut self, player: usize, loc: Loc) -> Result<Vec<Log>, GameError> {
-        try!(self.assert_not_finished());
-        try!(self.assert_player_turn(player));
+    pub fn play(&mut self, player: usize, _loc: Loc) -> Result<Vec<Log>, GameError> {
+        self.assert_not_finished()?;
+        self.assert_player_turn(player)?;
         if !self.can_play(player) {
             return Err(GameError::InvalidInput("You can't play a tile right now".to_string()));
         }
         panic!("Not implemented");
     }
 
-    pub fn buy(&mut self, player: usize, n: usize, corp: Corp) -> Result<Vec<Log>, GameError> {
-        try!(self.assert_not_finished());
-        try!(self.assert_player_turn(player));
+    pub fn buy(&mut self, player: usize, _n: usize, _corp: Corp) -> Result<Vec<Log>, GameError> {
+        self.assert_not_finished()?;
+        self.assert_player_turn(player)?;
         panic!("Not implemented");
     }
 
     pub fn done(&mut self, player: usize) -> Result<Vec<Log>, GameError> {
-        try!(self.assert_not_finished());
-        try!(self.assert_player_turn(player));
+        self.assert_not_finished()?;
+        self.assert_player_turn(player)?;
         panic!("Not implemented");
     }
 
-    pub fn merge(&mut self, player: usize, corp: Corp, into: Corp) -> Result<Vec<Log>, GameError> {
-        try!(self.assert_not_finished());
-        try!(self.assert_player_turn(player));
+    pub fn merge(&mut self,
+                 player: usize,
+                 _corp: Corp,
+                 _into: Corp)
+                 -> Result<Vec<Log>, GameError> {
+        self.assert_not_finished()?;
+        self.assert_player_turn(player)?;
         panic!("Not implemented");
     }
 
-    pub fn sell(&mut self, player: usize, n: usize) -> Result<Vec<Log>, GameError> {
-        try!(self.assert_not_finished());
-        try!(self.assert_player_turn(player));
+    pub fn sell(&mut self, player: usize, _n: usize) -> Result<Vec<Log>, GameError> {
+        self.assert_not_finished()?;
+        self.assert_player_turn(player)?;
         panic!("Not implemented");
     }
 
-    pub fn trade(&mut self, player: usize, n: usize) -> Result<Vec<Log>, GameError> {
-        try!(self.assert_not_finished());
-        try!(self.assert_player_turn(player));
+    pub fn trade(&mut self, player: usize, _n: usize) -> Result<Vec<Log>, GameError> {
+        self.assert_not_finished()?;
+        self.assert_player_turn(player)?;
         panic!("Not implemented");
     }
 
     pub fn keep(&mut self, player: usize) -> Result<Vec<Log>, GameError> {
-        try!(self.assert_not_finished());
-        try!(self.assert_player_turn(player));
+        self.assert_not_finished()?;
+        self.assert_player_turn(player)?;
         panic!("Not implemented");
     }
 }

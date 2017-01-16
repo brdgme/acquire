@@ -1,10 +1,8 @@
 use brdgme_game::Renderer;
 use brdgme_markup::ast::{Node as N, Align as A};
 
-use std::fmt::Display;
-
 use super::PubState;
-use board::{Board, Loc, Tile, rows, cols};
+use board::{Board, Loc, rows, cols};
 use corp::Corp;
 
 impl Renderer for PubState {
