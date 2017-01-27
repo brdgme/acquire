@@ -117,7 +117,7 @@ impl From<Loc> for usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ::corp::Corp;
+    use corp::Corp;
 
     #[test]
     fn usize_into_loc_works() {
