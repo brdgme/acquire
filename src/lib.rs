@@ -1,5 +1,3 @@
-#![feature(plugin)]
-
 extern crate rand;
 extern crate combine;
 #[macro_use]
