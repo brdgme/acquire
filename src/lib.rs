@@ -94,6 +94,51 @@ impl Gamer for Game {
             self.board.set_tile(l.into(), Tile::Unincorporated);
         }
 
+        // Fudge some data for testing.
+        // TODO: remove
+        self.board.set_tile(Loc { row: 0, col: 1 }.into(), Tile::Unincorporated);
+
+        self.board.set_tile(Loc { row: 5, col: 4 }.into(), Tile::Corp(Corp::Worldwide));
+        self.board.set_tile(Loc { row: 6, col: 4 }.into(), Tile::Corp(Corp::Worldwide));
+
+        self.board.set_tile(Loc { row: 2, col: 2 }.into(), Tile::Corp(Corp::Sackson));
+        self.board.set_tile(Loc { row: 2, col: 3 }.into(), Tile::Corp(Corp::Sackson));
+
+        self.board.set_tile(Loc { row: 3, col: 6 }.into(), Tile::Corp(Corp::Festival));
+        self.board.set_tile(Loc { row: 3, col: 7 }.into(), Tile::Corp(Corp::Festival));
+        self.board.set_tile(Loc { row: 4, col: 6 }.into(), Tile::Corp(Corp::Festival));
+
+        self.board.set_tile(Loc { row: 1, col: 8 }.into(), Tile::Corp(Corp::American));
+        self.board.set_tile(Loc { row: 1, col: 9 }.into(), Tile::Corp(Corp::American));
+        self.board.set_tile(Loc { row: 1, col: 10 }.into(), Tile::Corp(Corp::American));
+        self.board.set_tile(Loc { row: 1, col: 11 }.into(), Tile::Corp(Corp::American));
+
+        self.board.set_tile(Loc { row: 3, col: 9 }.into(), Tile::Corp(Corp::Imperial));
+        self.board.set_tile(Loc { row: 4, col: 9 }.into(), Tile::Corp(Corp::Imperial));
+        self.board.set_tile(Loc { row: 5, col: 9 }.into(), Tile::Corp(Corp::Imperial));
+        self.board.set_tile(Loc { row: 6, col: 9 }.into(), Tile::Corp(Corp::Imperial));
+
+        self.board.set_tile(Loc { row: 5, col: 2 }.into(), Tile::Corp(Corp::Tower));
+        self.board.set_tile(Loc { row: 6, col: 2 }.into(), Tile::Corp(Corp::Tower));
+        self.board.set_tile(Loc { row: 7, col: 2 }.into(), Tile::Corp(Corp::Tower));
+        self.board.set_tile(Loc { row: 8, col: 2 }.into(), Tile::Corp(Corp::Tower));
+        self.board.set_tile(Loc { row: 7, col: 1 }.into(), Tile::Corp(Corp::Tower));
+        self.board.set_tile(Loc { row: 7, col: 3 }.into(), Tile::Corp(Corp::Tower));
+
+        self.board.set_tile(Loc { row: 6, col: 6 }.into(), Tile::Corp(Corp::Continental));
+        self.board.set_tile(Loc { row: 6, col: 7 }.into(), Tile::Corp(Corp::Continental));
+        self.board.set_tile(Loc { row: 7, col: 6 }.into(), Tile::Corp(Corp::Continental));
+        self.board.set_tile(Loc { row: 7, col: 7 }.into(), Tile::Corp(Corp::Continental));
+        self.board.set_tile(Loc { row: 8, col: 5 }.into(), Tile::Corp(Corp::Continental));
+        self.board.set_tile(Loc { row: 8, col: 6 }.into(), Tile::Corp(Corp::Continental));
+        self.board.set_tile(Loc { row: 8, col: 7 }.into(), Tile::Corp(Corp::Continental));
+        self.board.set_tile(Loc { row: 8, col: 8 }.into(), Tile::Corp(Corp::Continental));
+        self.board.set_tile(Loc { row: 8, col: 9 }.into(), Tile::Corp(Corp::Continental));
+        self.board.set_tile(Loc { row: 8, col: 10 }.into(),
+                            Tile::Corp(Corp::Continental));
+        self.board.set_tile(Loc { row: 8, col: 11 }.into(),
+                            Tile::Corp(Corp::Continental));
+
         // Set starting shares.
         for c in Corp::iter() {
             self.shares.insert(*c, STARTING_SHARES);
