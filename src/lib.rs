@@ -58,12 +58,18 @@ impl Default for Phase {
 #[derive(Default, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct PubState {
     pub phase: Phase,
-    pub player: Option<usize>,
+    pub priv_state: Option<PrivState>,
     pub players: HashMap<usize, PubPlayer>,
     pub board: Board,
     pub shares: HashMap<Corp, usize>,
     pub remaining_tiles: usize,
     pub finished: bool,
+}
+
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
+pub struct PrivState {
+    pub id: usize,
+    pub tiles: Vec<Loc>,
 }
 
 #[derive(Default, PartialEq, Debug, Clone, Serialize, Deserialize)]
@@ -97,6 +103,7 @@ impl Gamer for Game {
         // Fudge some data for testing.
         // TODO: remove
         self.board.set_tile(Loc { row: 0, col: 1 }.into(), Tile::Unincorporated);
+        self.board.set_tile(Loc { row: 0, col: 0 }.into(), Tile::Discarded);
 
         self.board.set_tile(Loc { row: 5, col: 4 }.into(), Tile::Corp(Corp::Worldwide));
         self.board.set_tile(Loc { row: 6, col: 4 }.into(), Tile::Corp(Corp::Worldwide));
@@ -175,7 +182,18 @@ impl Gamer for Game {
     }
 
     fn pub_state(&self, player: Option<usize>) -> Self::PubState {
-        PubState { player: player, ..self.to_owned().into() }
+        PubState {
+            priv_state: player.map(|ref p| {
+                PrivState {
+                    id: *p,
+                    tiles: self.players
+                        .get(p)
+                        .map(|ref ps| ps.tiles.to_owned())
+                        .unwrap_or_else(|| vec![]),
+                }
+            }),
+            ..self.to_owned().into()
+        }
     }
 
     fn command(&mut self,
@@ -284,7 +302,7 @@ impl Into<PubState> for Game {
     fn into(self) -> PubState {
         PubState {
             phase: self.phase,
-            player: None,
+            priv_state: None,
             players: HashMap::from_iter(self.players
                 .iter()
                 .map(|(k, v)| (*k, v.to_owned().into()))),

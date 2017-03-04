@@ -18,9 +18,9 @@ static EMPTY_COLOR_EVEN: Color = Color {
 };
 
 static EMPTY_COLOR_ODD: Color = Color {
-    r: 180,
-    g: 180,
-    b: 180,
+    r: 190,
+    g: 190,
+    b: 190,
 };
 
 static UNINCORPORATED_COLOR: Color = Color {
@@ -35,9 +35,16 @@ static UNAVAILABLE_LOC_TEXT_COLOR: Color = Color {
     b: 80,
 };
 
+static AVAILABLE_LOC_BG: Color = Color {
+    r: 248,
+    g: 187,
+    b: 208,
+};
+
 impl Renderer for PubState {
     fn render(&self) -> Vec<N> {
-        vec![N::Table(vec![vec![(A::Center, vec![self.board.render()])]])]
+        let tiles = self.clone().priv_state.map(|ps| ps.tiles).unwrap_or_else(|| vec![]);
+        vec![N::Table(vec![vec![(A::Center, vec![self.board.render(&tiles)])]])]
     }
 }
 
@@ -74,7 +81,7 @@ fn corp_main_text_wide(c: Corp, size: usize) -> Vec<N> {
 }
 
 impl Board {
-    pub fn render(&self) -> N {
+    pub fn render(&self, player_tiles: &[Loc]) -> N {
         let mut layers = vec![];
         // Tile backgrounds and location text.
         for l in Loc::all() {
@@ -96,8 +103,22 @@ impl Board {
                 Tile::Corp(ref c) => {
                     layers.push((render_x, render_y, vec![tile_background(c.color())]));
                 }
-                _ => panic!("not implemented"),
+                Tile::Discarded => {}
             }
+        }
+        // Player tiles.
+        for t in player_tiles {
+            let l = Loc::from(*t);
+            let render_x = l.col * TILE_WIDTH;
+            let render_y = l.row * TILE_HEIGHT;
+            layers.push((render_x, render_y, vec![tile_background(AVAILABLE_LOC_BG)]));
+            layers.push((render_x,
+                         render_y,
+                         vec![N::Align(A::Center,
+                                       TILE_WIDTH,
+                                       vec![N::Bold(vec![N::Fg(AVAILABLE_LOC_BG.inv()
+                                                                   .mono(),
+                                                               vec![N::text(l.name())])])])]));
         }
         // Corp text.
         layers.extend(Corp::iter()
