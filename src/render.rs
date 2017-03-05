@@ -1,5 +1,5 @@
 use brdgme_game::Renderer;
-use brdgme_markup::ast::{Node as N, Align as A};
+use brdgme_markup::{Node as N, Align as A};
 use brdgme_color::*;
 
 use super::PubState;

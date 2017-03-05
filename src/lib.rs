@@ -15,7 +15,7 @@ mod parser;
 use rand::{thread_rng, Rng};
 use combine::Parser;
 use brdgme_game::{Gamer, GameError, Log};
-use brdgme_markup::ast::Node as N;
+use brdgme_markup::Node as N;
 
 use std::collections::HashMap;
 use std::iter::FromIterator;
