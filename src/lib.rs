@@ -188,7 +188,7 @@ impl Gamer for Game {
                     id: *p,
                     tiles: self.players
                         .get(p)
-                        .map(|ref ps| ps.tiles.to_owned())
+                        .map(|ps| ps.tiles.to_owned())
                         .unwrap_or_else(|| vec![]),
                 }
             }),
