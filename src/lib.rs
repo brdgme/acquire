@@ -219,7 +219,7 @@ impl Gamer for Game {
                 self.trade(player, n).map(|l| (l, remaining.to_string()))
             }
             Ok((Command::Keep, remaining)) => self.keep(player).map(|l| (l, remaining.to_string())),
-            Err(e) => Err(brdgme_game::parser::to_game_error(e)),
+            Err(e) => Err(brdgme_game::parser::to_game_error(&e)),
         }
     }
 }
