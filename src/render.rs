@@ -43,7 +43,10 @@ static AVAILABLE_LOC_BG: Color = Color {
 
 impl Renderer for PubState {
     fn render(&self) -> Vec<N> {
-        let tiles = self.clone().priv_state.map(|ps| ps.tiles).unwrap_or_else(|| vec![]);
+        let tiles = self.clone()
+            .priv_state
+            .map(|ps| ps.tiles)
+            .unwrap_or_else(|| vec![]);
         vec![N::Table(vec![vec![(A::Center, vec![self.board.render(&tiles)])]])]
     }
 }
@@ -51,9 +54,9 @@ impl Renderer for PubState {
 fn tile_background(c: Color) -> N {
     N::Bg(c,
           vec![N::text(repeat(repeat(" ").take(TILE_WIDTH).collect::<String>())
-                   .take(TILE_HEIGHT)
-                   .collect::<Vec<String>>()
-                   .join("\n"))])
+                           .take(TILE_HEIGHT)
+                           .collect::<Vec<String>>()
+                           .join("\n"))])
 }
 
 fn empty_color(l: Loc) -> Color {
@@ -122,56 +125,56 @@ impl Board {
         }
         // Corp text.
         layers.extend(Corp::iter()
-            .flat_map(|c| {
-                let mut c_text = vec![];
-                // Find the widest lines.
-                // `widths` is a tuple of x, y, width.
-                let widths: Vec<(usize, usize, usize)> = board::rows()
-                    .flat_map(|row| {
-                        let mut start: Option<usize> = None;
-                        board::cols()
-                            .filter_map(|col| {
-                                let l = Loc {
-                                    row: row,
-                                    col: col,
-                                };
-                                match self.get_tile(l.into()) {
-                                    Tile::Corp(tc) if tc == *c => {
-                                        if start.is_none() {
-                                            start = Some(col);
-                                        }
-                                        if col == board::WIDTH - 1 {
-                                            Some((start.unwrap(), row, col - start.unwrap() + 1))
-                                        } else {
-                                            None
-                                        }
+                          .flat_map(|c| {
+            let mut c_text = vec![];
+            // Find the widest lines.
+            // `widths` is a tuple of x, y, width.
+            let widths: Vec<(usize, usize, usize)> = board::rows()
+                .flat_map(|row| {
+                    let mut start: Option<usize> = None;
+                    board::cols()
+                        .filter_map(|col| {
+                            let l = Loc {
+                                row: row,
+                                col: col,
+                            };
+                            match self.get_tile(l.into()) {
+                                Tile::Corp(tc) if tc == *c => {
+                                    if start.is_none() {
+                                        start = Some(col);
                                     }
-                                    _ => {
-                                        if let Some(s) = start {
-                                            start = None;
-                                            Some((s, row, col - s))
-                                        } else {
-                                            None
-                                        }
+                                    if col == board::WIDTH - 1 {
+                                        Some((start.unwrap(), row, col - start.unwrap() + 1))
+                                    } else {
+                                        None
                                     }
                                 }
-                            })
-                            .collect::<Vec<(usize, usize, usize)>>()
-                    })
-                    .collect();
-                if !widths.is_empty() {
-                    let (x, y, w) = widths[(widths.len() - 1) / 2];
-                    c_text.push(((x + (w - 1) / 2) * TILE_WIDTH,
-                                 y * TILE_HEIGHT,
-                                 if w > 1 {
-                                     corp_main_text_wide(*c, self.corp_size(*c))
-                                 } else {
-                                     corp_main_text_thin(*c, self.corp_size(*c))
-                                 }));
-                }
-                c_text
-            })
-            .collect::<Vec<(usize, usize, Vec<N>)>>());
+                                _ => {
+                                    if let Some(s) = start {
+                                        start = None;
+                                        Some((s, row, col - s))
+                                    } else {
+                                        None
+                                    }
+                                }
+                            }
+                        })
+                        .collect::<Vec<(usize, usize, usize)>>()
+                })
+                .collect();
+            if !widths.is_empty() {
+                let (x, y, w) = widths[(widths.len() - 1) / 2];
+                c_text.push(((x + (w - 1) / 2) * TILE_WIDTH,
+                             y * TILE_HEIGHT,
+                             if w > 1 {
+                                 corp_main_text_wide(*c, self.corp_size(*c))
+                             } else {
+                                 corp_main_text_thin(*c, self.corp_size(*c))
+                             }));
+            }
+            c_text
+        })
+                          .collect::<Vec<(usize, usize, Vec<N>)>>());
         N::Canvas(layers)
     }
 }

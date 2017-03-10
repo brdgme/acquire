@@ -85,7 +85,8 @@ pub struct Game {
 impl Gamer for Game {
     type PubState = PubState;
 
-    fn start(&mut self, players: usize) -> Result<Vec<Log>, GameError> {
+    fn new(players: usize) -> Result<(Self, Vec<Log>), GameError> {
+        let mut g = Game::default();
         if players < MIN_PLAYERS || players > MAX_PLAYERS {
             return Err(GameError::PlayerCount(MIN_PLAYERS, MAX_PLAYERS, players));
         }
@@ -93,76 +94,76 @@ impl Gamer for Game {
         // Shuffle up the draw tiles.
         let mut tiles = Loc::all();
         thread_rng().shuffle(tiles.as_mut_slice());
-        self.draw_tiles = tiles;
+        g.draw_tiles = tiles;
 
         // Place initial tiles onto the board.
-        for l in self.draw_tiles.drain(0..players) {
-            self.board.set_tile(l.into(), Tile::Unincorporated);
+        for l in g.draw_tiles.drain(0..players) {
+            g.board.set_tile(l.into(), Tile::Unincorporated);
         }
 
         // Fudge some data for testing.
         // TODO: remove
-        self.board.set_tile(Loc { row: 0, col: 1 }.into(), Tile::Unincorporated);
-        self.board.set_tile(Loc { row: 0, col: 0 }.into(), Tile::Discarded);
+        g.board.set_tile(Loc { row: 0, col: 1 }.into(), Tile::Unincorporated);
+        g.board.set_tile(Loc { row: 0, col: 0 }.into(), Tile::Discarded);
 
-        self.board.set_tile(Loc { row: 5, col: 4 }.into(), Tile::Corp(Corp::Worldwide));
-        self.board.set_tile(Loc { row: 6, col: 4 }.into(), Tile::Corp(Corp::Worldwide));
+        g.board.set_tile(Loc { row: 5, col: 4 }.into(), Tile::Corp(Corp::Worldwide));
+        g.board.set_tile(Loc { row: 6, col: 4 }.into(), Tile::Corp(Corp::Worldwide));
 
-        self.board.set_tile(Loc { row: 2, col: 2 }.into(), Tile::Corp(Corp::Sackson));
-        self.board.set_tile(Loc { row: 2, col: 3 }.into(), Tile::Corp(Corp::Sackson));
+        g.board.set_tile(Loc { row: 2, col: 2 }.into(), Tile::Corp(Corp::Sackson));
+        g.board.set_tile(Loc { row: 2, col: 3 }.into(), Tile::Corp(Corp::Sackson));
 
-        self.board.set_tile(Loc { row: 3, col: 6 }.into(), Tile::Corp(Corp::Festival));
-        self.board.set_tile(Loc { row: 3, col: 7 }.into(), Tile::Corp(Corp::Festival));
-        self.board.set_tile(Loc { row: 4, col: 6 }.into(), Tile::Corp(Corp::Festival));
+        g.board.set_tile(Loc { row: 3, col: 6 }.into(), Tile::Corp(Corp::Festival));
+        g.board.set_tile(Loc { row: 3, col: 7 }.into(), Tile::Corp(Corp::Festival));
+        g.board.set_tile(Loc { row: 4, col: 6 }.into(), Tile::Corp(Corp::Festival));
 
-        self.board.set_tile(Loc { row: 1, col: 8 }.into(), Tile::Corp(Corp::American));
-        self.board.set_tile(Loc { row: 1, col: 9 }.into(), Tile::Corp(Corp::American));
-        self.board.set_tile(Loc { row: 1, col: 10 }.into(), Tile::Corp(Corp::American));
-        self.board.set_tile(Loc { row: 1, col: 11 }.into(), Tile::Corp(Corp::American));
+        g.board.set_tile(Loc { row: 1, col: 8 }.into(), Tile::Corp(Corp::American));
+        g.board.set_tile(Loc { row: 1, col: 9 }.into(), Tile::Corp(Corp::American));
+        g.board.set_tile(Loc { row: 1, col: 10 }.into(), Tile::Corp(Corp::American));
+        g.board.set_tile(Loc { row: 1, col: 11 }.into(), Tile::Corp(Corp::American));
 
-        self.board.set_tile(Loc { row: 3, col: 9 }.into(), Tile::Corp(Corp::Imperial));
-        self.board.set_tile(Loc { row: 4, col: 9 }.into(), Tile::Corp(Corp::Imperial));
-        self.board.set_tile(Loc { row: 5, col: 9 }.into(), Tile::Corp(Corp::Imperial));
-        self.board.set_tile(Loc { row: 6, col: 9 }.into(), Tile::Corp(Corp::Imperial));
+        g.board.set_tile(Loc { row: 3, col: 9 }.into(), Tile::Corp(Corp::Imperial));
+        g.board.set_tile(Loc { row: 4, col: 9 }.into(), Tile::Corp(Corp::Imperial));
+        g.board.set_tile(Loc { row: 5, col: 9 }.into(), Tile::Corp(Corp::Imperial));
+        g.board.set_tile(Loc { row: 6, col: 9 }.into(), Tile::Corp(Corp::Imperial));
 
-        self.board.set_tile(Loc { row: 5, col: 2 }.into(), Tile::Corp(Corp::Tower));
-        self.board.set_tile(Loc { row: 6, col: 2 }.into(), Tile::Corp(Corp::Tower));
-        self.board.set_tile(Loc { row: 7, col: 2 }.into(), Tile::Corp(Corp::Tower));
-        self.board.set_tile(Loc { row: 8, col: 2 }.into(), Tile::Corp(Corp::Tower));
-        self.board.set_tile(Loc { row: 7, col: 1 }.into(), Tile::Corp(Corp::Tower));
-        self.board.set_tile(Loc { row: 7, col: 3 }.into(), Tile::Corp(Corp::Tower));
+        g.board.set_tile(Loc { row: 5, col: 2 }.into(), Tile::Corp(Corp::Tower));
+        g.board.set_tile(Loc { row: 6, col: 2 }.into(), Tile::Corp(Corp::Tower));
+        g.board.set_tile(Loc { row: 7, col: 2 }.into(), Tile::Corp(Corp::Tower));
+        g.board.set_tile(Loc { row: 8, col: 2 }.into(), Tile::Corp(Corp::Tower));
+        g.board.set_tile(Loc { row: 7, col: 1 }.into(), Tile::Corp(Corp::Tower));
+        g.board.set_tile(Loc { row: 7, col: 3 }.into(), Tile::Corp(Corp::Tower));
 
-        self.board.set_tile(Loc { row: 6, col: 6 }.into(), Tile::Corp(Corp::Continental));
-        self.board.set_tile(Loc { row: 6, col: 7 }.into(), Tile::Corp(Corp::Continental));
-        self.board.set_tile(Loc { row: 7, col: 6 }.into(), Tile::Corp(Corp::Continental));
-        self.board.set_tile(Loc { row: 7, col: 7 }.into(), Tile::Corp(Corp::Continental));
-        self.board.set_tile(Loc { row: 8, col: 5 }.into(), Tile::Corp(Corp::Continental));
-        self.board.set_tile(Loc { row: 8, col: 6 }.into(), Tile::Corp(Corp::Continental));
-        self.board.set_tile(Loc { row: 8, col: 7 }.into(), Tile::Corp(Corp::Continental));
-        self.board.set_tile(Loc { row: 8, col: 8 }.into(), Tile::Corp(Corp::Continental));
-        self.board.set_tile(Loc { row: 8, col: 9 }.into(), Tile::Corp(Corp::Continental));
-        self.board.set_tile(Loc { row: 8, col: 10 }.into(),
-                            Tile::Corp(Corp::Continental));
-        self.board.set_tile(Loc { row: 8, col: 11 }.into(),
-                            Tile::Corp(Corp::Continental));
+        g.board.set_tile(Loc { row: 6, col: 6 }.into(), Tile::Corp(Corp::Continental));
+        g.board.set_tile(Loc { row: 6, col: 7 }.into(), Tile::Corp(Corp::Continental));
+        g.board.set_tile(Loc { row: 7, col: 6 }.into(), Tile::Corp(Corp::Continental));
+        g.board.set_tile(Loc { row: 7, col: 7 }.into(), Tile::Corp(Corp::Continental));
+        g.board.set_tile(Loc { row: 8, col: 5 }.into(), Tile::Corp(Corp::Continental));
+        g.board.set_tile(Loc { row: 8, col: 6 }.into(), Tile::Corp(Corp::Continental));
+        g.board.set_tile(Loc { row: 8, col: 7 }.into(), Tile::Corp(Corp::Continental));
+        g.board.set_tile(Loc { row: 8, col: 8 }.into(), Tile::Corp(Corp::Continental));
+        g.board.set_tile(Loc { row: 8, col: 9 }.into(), Tile::Corp(Corp::Continental));
+        g.board.set_tile(Loc { row: 8, col: 10 }.into(),
+                         Tile::Corp(Corp::Continental));
+        g.board.set_tile(Loc { row: 8, col: 11 }.into(),
+                         Tile::Corp(Corp::Continental));
 
         // Set starting shares.
         for c in Corp::iter() {
-            self.shares.insert(*c, STARTING_SHARES);
+            g.shares.insert(*c, STARTING_SHARES);
         }
 
         // Setup for each player.
         for p in 0..players {
             let mut player = Player::default();
-            player.tiles = self.draw_tiles.drain(0..TILE_HAND_SIZE).collect();
-            self.players.insert(p, player);
+            player.tiles = g.draw_tiles.drain(0..TILE_HAND_SIZE).collect();
+            g.players.insert(p, player);
         }
 
         // Set the start player.
         let start_player = (thread_rng().next_u32() as usize) % players;
-        self.phase = Phase::Play(start_player);
+        g.phase = Phase::Play(start_player);
 
-        Ok(vec![Log::public(vec![N::Player(start_player), N::text(" will start the game")])])
+        Ok((g, vec![Log::public(vec![N::Player(start_player), N::text(" will start the game")])]))
     }
 
     fn is_finished(&self) -> bool {
@@ -303,9 +304,9 @@ impl Into<PubState> for Game {
         PubState {
             phase: self.phase,
             priv_state: None,
-            players: HashMap::from_iter(self.players
-                .iter()
-                .map(|(k, v)| (*k, v.to_owned().into()))),
+            players: HashMap::from_iter(self.players.iter().map(|(k, v)| {
+                                                                    (*k, v.to_owned().into())
+                                                                })),
             board: self.board,
             shares: self.shares,
             remaining_tiles: self.draw_tiles.len(),

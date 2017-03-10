@@ -83,8 +83,8 @@ pub fn merge<I>(input: I) -> ParseResult<Command, I>
      string_cmp("into", cmp_ignore_case),
      spaces(),
      parser(corp))
-        .map(|(_, _, c1, _, _, _, c2)| Command::Merge(c1, c2))
-        .parse_stream(input)
+            .map(|(_, _, c1, _, _, _, c2)| Command::Merge(c1, c2))
+            .parse_stream(input)
 }
 
 pub fn sell<I>(input: I) -> ParseResult<Command, I>
@@ -129,7 +129,7 @@ pub fn corp<I>(input: I) -> ParseResult<Corp, I>
                             .map(|c| (c.name(), c))
                             .collect::<Vec<(String, &Corp)>>()
                             .iter())
-                .map(|c| **c)
+                    .map(|c| **c)
         })
         .parse_stream(input)
 }
@@ -145,15 +145,15 @@ pub fn loc_row<I>(input: I) -> ParseResult<usize, I>
 {
     let a_index = 'a' as usize;
     satisfy_map(|c: char| {
-            if c.is_ascii() {
-                let lc = c.to_ascii_lowercase() as usize;
-                if lc >= a_index {
-                    return Some(lc - a_index);
-                }
+        if c.is_ascii() {
+            let lc = c.to_ascii_lowercase() as usize;
+            if lc >= a_index {
+                return Some(lc - a_index);
             }
-            None
-        })
-        .parse_stream(input)
+        }
+        None
+    })
+            .parse_stream(input)
 }
 
 pub fn loc_col<I>(input: I) -> ParseResult<usize, I>
@@ -162,10 +162,10 @@ pub fn loc_col<I>(input: I) -> ParseResult<usize, I>
     many1(digit())
         .and_then(|s: String| s.parse::<usize>())
         .and_then(|d: usize| if d > 0 {
-            Ok(d - 1)
-        } else {
-            Err(GameError::InvalidInput("column must be 1 or higher".to_string()))
-        })
+                      Ok(d - 1)
+                  } else {
+                      Err(GameError::InvalidInput("column must be 1 or higher".to_string()))
+                  })
         .parse_stream(input)
 }
 
