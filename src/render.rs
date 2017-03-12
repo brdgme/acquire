@@ -52,7 +52,7 @@ impl Renderer for PubState {
 }
 
 fn tile_background(c: Color) -> N {
-    N::Bg(c,
+    N::Bg(c.into(),
           vec![N::text(repeat(repeat(" ").take(TILE_WIDTH).collect::<String>())
                            .take(TILE_HEIGHT)
                            .collect::<Vec<String>>()
@@ -68,7 +68,10 @@ fn empty_color(l: Loc) -> Color {
 }
 
 fn corp_main_text_thin(c: Corp, size: usize) -> Vec<N> {
-    vec![N::Fg(c.color().inv().mono(),
+    vec![N::Fg(c.color()
+                   .inv()
+                   .mono()
+                   .into(),
                vec![N::Align(A::Center,
                              TILE_WIDTH,
                              vec![N::text(format!("{}\n${}", c.abbrev(), c.value(size)))])])]
@@ -77,7 +80,10 @@ fn corp_main_text_thin(c: Corp, size: usize) -> Vec<N> {
 fn corp_main_text_wide(c: Corp, size: usize) -> Vec<N> {
     let mut c_name = c.name();
     c_name.truncate(TILE_WIDTH * 2 - 2);
-    vec![N::Fg(c.color().inv().mono(),
+    vec![N::Fg(c.color()
+                   .inv()
+                   .mono()
+                   .into(),
                vec![N::Align(A::Center,
                              TILE_WIDTH * 2,
                              vec![N::text(format!("{}\n${}", c_name, c.value(size)))])])]
@@ -97,7 +103,7 @@ impl Board {
                                  render_y,
                                  vec![N::Align(A::Center,
                                                TILE_WIDTH,
-                                               vec![N::Fg(UNAVAILABLE_LOC_TEXT_COLOR,
+                                               vec![N::Fg(UNAVAILABLE_LOC_TEXT_COLOR.into(),
                                                           vec![N::text(l.name())])])]));
                 }
                 Tile::Unincorporated => {
@@ -120,7 +126,8 @@ impl Board {
                          vec![N::Align(A::Center,
                                        TILE_WIDTH,
                                        vec![N::Bold(vec![N::Fg(AVAILABLE_LOC_BG.inv()
-                                                                   .mono(),
+                                                                   .mono()
+                                                                   .into(),
                                                                vec![N::text(l.name())])])])]));
         }
         // Corp text.
@@ -181,8 +188,12 @@ impl Board {
 
 impl Corp {
     pub fn render_in_color(self, content: Vec<N>) -> N {
-        N::Bg(self.color(),
-              vec![N::Fg(self.color().mono().inv(), vec![N::Bold(content)])])
+        N::Bg(self.color().into(),
+              vec![N::Fg(self.color()
+                             .mono()
+                             .inv()
+                             .into(),
+                         vec![N::Bold(content)])])
     }
 
     pub fn render_name(self) -> N {
