@@ -8,6 +8,7 @@ brdgme-std = { path = "../std" }
 brdgme-game = { path = "../game" }
 brdgme-color = { path = "../color" }
 brdgme-markup = { path = "../markup" }
+brdgme-cmd = { path = "../cmd" }
 rand = "*"
 combine = "*"
 serde = "*"
