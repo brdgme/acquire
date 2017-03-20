@@ -14,7 +14,7 @@ mod parser;
 
 use rand::{thread_rng, Rng};
 use combine::Parser;
-use brdgme_game::{Gamer, GameError, Log};
+use brdgme_game::{Gamer, GameError, Log, Status};
 use brdgme_markup::Node as N;
 
 use std::collections::HashMap;
@@ -166,19 +166,14 @@ impl Gamer for Game {
         Ok((g, vec![Log::public(vec![N::Player(start_player), N::text(" will start the game")])]))
     }
 
-    fn is_finished(&self) -> bool {
-        self.finished
-    }
-
-    fn winners(&self) -> Vec<usize> {
-        vec![]
-    }
-
-    fn whose_turn(&self) -> Vec<usize> {
-        if self.is_finished() {
-            vec![]
+    fn status(&self) -> Status {
+        if self.finished {
+            Status::Finished { winners: vec![] }
         } else {
-            vec![self.phase.whose_turn()]
+            Status::Active {
+                whose_turn: vec![self.phase.whose_turn()],
+                eliminated: vec![],
+            }
         }
     }
 
