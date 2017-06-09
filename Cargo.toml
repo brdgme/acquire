@@ -9,6 +9,5 @@ brdgme-color = { git = "https://github.com/brdgme/color.git" }
 brdgme-markup = { git = "https://github.com/brdgme/markup.git" }
 brdgme-cmd = { git = "https://github.com/brdgme/cmd.git" }
 rand = "0.3.15"
-combine = "2.3.1"
-serde = "0.9.13"
-serde_derive = "0.9.13"
+serde = "1.0.8"
+serde_derive = "1.0.8"

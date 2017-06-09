@@ -2,6 +2,7 @@ use super::corp::{self, Corp};
 
 use std::iter;
 use std::ops::Range;
+use std::fmt;
 
 pub const WIDTH: usize = 12;
 pub const HEIGHT: usize = 9;
@@ -26,16 +27,14 @@ pub struct Board(pub Vec<Tile>);
 
 impl Board {
     pub fn get_tile(&self, at: usize) -> Tile {
-        self.0
-            .get(at)
-            .cloned()
-            .unwrap_or_default()
+        self.0.get(at).cloned().unwrap_or_default()
     }
 
     pub fn set_tile(&mut self, at: usize, t: Tile) {
         let len = self.0.len();
         if len <= at {
-            self.0.extend(iter::repeat(Tile::default()).take(at - len + 1))
+            self.0
+                .extend(iter::repeat(Tile::default()).take(at - len + 1))
         }
         self.0[at] = t;
     }
@@ -77,28 +76,48 @@ pub struct Loc {
 
 impl Loc {
     pub fn all() -> Vec<Loc> {
-        rows().flat_map(move |r| cols().map(move |c| Loc { row: r, col: c })).collect()
+        rows()
+            .flat_map(move |r| cols().map(move |c| Loc { row: r, col: c }))
+            .collect()
     }
 
     pub fn neighbours(&self) -> Vec<Loc> {
         let mut n = vec![];
         if self.col > 0 {
-            n.push(Loc { col: self.col - 1, ..*self });
+            n.push(Loc {
+                       col: self.col - 1,
+                       ..*self
+                   });
         }
         if self.col < WIDTH - 1 {
-            n.push(Loc { col: self.col + 1, ..*self });
+            n.push(Loc {
+                       col: self.col + 1,
+                       ..*self
+                   });
         }
         if self.row > 0 {
-            n.push(Loc { row: self.row - 1, ..*self });
+            n.push(Loc {
+                       row: self.row - 1,
+                       ..*self
+                   });
         }
         if self.row < HEIGHT - 1 {
-            n.push(Loc { row: self.row + 1, ..*self });
+            n.push(Loc {
+                       row: self.row + 1,
+                       ..*self
+                   });
         }
         n
     }
 
     pub fn name(&self) -> String {
-        format!("{}{}", ('A' as u8 + self.row as u8) as char, self.col + 1)
+        format!("{}", self)
+    }
+}
+
+impl fmt::Display for Loc {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}{}", (b'A' + self.row as u8) as char, self.col + 1)
     }
 }
 

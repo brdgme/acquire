@@ -1,5 +1,5 @@
+#![feature(conservative_impl_trait)]
 extern crate rand;
-extern crate combine;
 #[macro_use]
 extern crate serde_derive;
 
@@ -10,11 +10,12 @@ extern crate brdgme_markup;
 pub mod corp;
 pub mod board;
 mod render;
-mod parser;
+mod command;
 
 use rand::{thread_rng, Rng};
-use combine::Parser;
-use brdgme_game::{Gamer, GameError, Log, Status};
+use brdgme_game::{Gamer, Log, Status, CommandResponse};
+use brdgme_game::errors::*;
+use brdgme_game::command::Spec as CommandSpec;
 use brdgme_markup::Node as N;
 
 use std::collections::HashMap;
@@ -22,7 +23,7 @@ use std::iter::FromIterator;
 
 use corp::Corp;
 use board::{Board, Loc, Tile};
-use parser::Command;
+use command::Command;
 
 pub const MIN_PLAYERS: usize = 2;
 pub const MAX_PLAYERS: usize = 6;
@@ -33,18 +34,22 @@ pub const TILE_HAND_SIZE: usize = 6;
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum Phase {
     Play(usize),
-    Buy(usize),
+    Buy { player: usize, remaining: usize },
     ChooseMerger(usize),
-    SellOrTrade(usize, Box<Phase>),
+    SellOrTrade {
+        player: usize,
+        corp: Corp,
+        next_phase: Box<Phase>,
+    },
 }
 
 impl Phase {
     pub fn whose_turn(&self) -> usize {
         match *self {
-            Phase::Play(p) |
-            Phase::Buy(p) |
-            Phase::ChooseMerger(p) |
-            Phase::SellOrTrade(p, _) => p,
+            Phase::Play(player) |
+            Phase::Buy { player, .. } |
+            Phase::ChooseMerger(player) |
+            Phase::SellOrTrade { player, .. } => player,
         }
     }
 }
@@ -85,10 +90,10 @@ pub struct Game {
 impl Gamer for Game {
     type PubState = PubState;
 
-    fn new(players: usize) -> Result<(Self, Vec<Log>), GameError> {
+    fn new(players: usize) -> Result<(Self, Vec<Log>)> {
         let mut g = Game::default();
         if players < MIN_PLAYERS || players > MAX_PLAYERS {
-            return Err(GameError::PlayerCount(MIN_PLAYERS, MAX_PLAYERS, players));
+            return Err(ErrorKind::PlayerCount(MIN_PLAYERS, MAX_PLAYERS, players).into());
         }
 
         // Shuffle up the draw tiles.
@@ -103,49 +108,83 @@ impl Gamer for Game {
 
         // Fudge some data for testing.
         // TODO: remove
-        g.board.set_tile(Loc { row: 0, col: 1 }.into(), Tile::Unincorporated);
-        g.board.set_tile(Loc { row: 0, col: 0 }.into(), Tile::Discarded);
+        g.board
+            .set_tile(Loc { row: 0, col: 1 }.into(), Tile::Unincorporated);
+        g.board
+            .set_tile(Loc { row: 0, col: 0 }.into(), Tile::Discarded);
 
-        g.board.set_tile(Loc { row: 5, col: 4 }.into(), Tile::Corp(Corp::Worldwide));
-        g.board.set_tile(Loc { row: 6, col: 4 }.into(), Tile::Corp(Corp::Worldwide));
+        g.board
+            .set_tile(Loc { row: 5, col: 4 }.into(), Tile::Corp(Corp::Worldwide));
+        g.board
+            .set_tile(Loc { row: 6, col: 4 }.into(), Tile::Corp(Corp::Worldwide));
 
-        g.board.set_tile(Loc { row: 2, col: 2 }.into(), Tile::Corp(Corp::Sackson));
-        g.board.set_tile(Loc { row: 2, col: 3 }.into(), Tile::Corp(Corp::Sackson));
+        g.board
+            .set_tile(Loc { row: 2, col: 2 }.into(), Tile::Corp(Corp::Sackson));
+        g.board
+            .set_tile(Loc { row: 2, col: 3 }.into(), Tile::Corp(Corp::Sackson));
 
-        g.board.set_tile(Loc { row: 3, col: 6 }.into(), Tile::Corp(Corp::Festival));
-        g.board.set_tile(Loc { row: 3, col: 7 }.into(), Tile::Corp(Corp::Festival));
-        g.board.set_tile(Loc { row: 4, col: 6 }.into(), Tile::Corp(Corp::Festival));
+        g.board
+            .set_tile(Loc { row: 3, col: 6 }.into(), Tile::Corp(Corp::Festival));
+        g.board
+            .set_tile(Loc { row: 3, col: 7 }.into(), Tile::Corp(Corp::Festival));
+        g.board
+            .set_tile(Loc { row: 4, col: 6 }.into(), Tile::Corp(Corp::Festival));
 
-        g.board.set_tile(Loc { row: 1, col: 8 }.into(), Tile::Corp(Corp::American));
-        g.board.set_tile(Loc { row: 1, col: 9 }.into(), Tile::Corp(Corp::American));
-        g.board.set_tile(Loc { row: 1, col: 10 }.into(), Tile::Corp(Corp::American));
-        g.board.set_tile(Loc { row: 1, col: 11 }.into(), Tile::Corp(Corp::American));
+        g.board
+            .set_tile(Loc { row: 1, col: 8 }.into(), Tile::Corp(Corp::American));
+        g.board
+            .set_tile(Loc { row: 1, col: 9 }.into(), Tile::Corp(Corp::American));
+        g.board
+            .set_tile(Loc { row: 1, col: 10 }.into(), Tile::Corp(Corp::American));
+        g.board
+            .set_tile(Loc { row: 1, col: 11 }.into(), Tile::Corp(Corp::American));
 
-        g.board.set_tile(Loc { row: 3, col: 9 }.into(), Tile::Corp(Corp::Imperial));
-        g.board.set_tile(Loc { row: 4, col: 9 }.into(), Tile::Corp(Corp::Imperial));
-        g.board.set_tile(Loc { row: 5, col: 9 }.into(), Tile::Corp(Corp::Imperial));
-        g.board.set_tile(Loc { row: 6, col: 9 }.into(), Tile::Corp(Corp::Imperial));
+        g.board
+            .set_tile(Loc { row: 3, col: 9 }.into(), Tile::Corp(Corp::Imperial));
+        g.board
+            .set_tile(Loc { row: 4, col: 9 }.into(), Tile::Corp(Corp::Imperial));
+        g.board
+            .set_tile(Loc { row: 5, col: 9 }.into(), Tile::Corp(Corp::Imperial));
+        g.board
+            .set_tile(Loc { row: 6, col: 9 }.into(), Tile::Corp(Corp::Imperial));
 
-        g.board.set_tile(Loc { row: 5, col: 2 }.into(), Tile::Corp(Corp::Tower));
-        g.board.set_tile(Loc { row: 6, col: 2 }.into(), Tile::Corp(Corp::Tower));
-        g.board.set_tile(Loc { row: 7, col: 2 }.into(), Tile::Corp(Corp::Tower));
-        g.board.set_tile(Loc { row: 8, col: 2 }.into(), Tile::Corp(Corp::Tower));
-        g.board.set_tile(Loc { row: 7, col: 1 }.into(), Tile::Corp(Corp::Tower));
-        g.board.set_tile(Loc { row: 7, col: 3 }.into(), Tile::Corp(Corp::Tower));
+        g.board
+            .set_tile(Loc { row: 5, col: 2 }.into(), Tile::Corp(Corp::Tower));
+        g.board
+            .set_tile(Loc { row: 6, col: 2 }.into(), Tile::Corp(Corp::Tower));
+        g.board
+            .set_tile(Loc { row: 7, col: 2 }.into(), Tile::Corp(Corp::Tower));
+        g.board
+            .set_tile(Loc { row: 8, col: 2 }.into(), Tile::Corp(Corp::Tower));
+        g.board
+            .set_tile(Loc { row: 7, col: 1 }.into(), Tile::Corp(Corp::Tower));
+        g.board
+            .set_tile(Loc { row: 7, col: 3 }.into(), Tile::Corp(Corp::Tower));
 
-        g.board.set_tile(Loc { row: 6, col: 6 }.into(), Tile::Corp(Corp::Continental));
-        g.board.set_tile(Loc { row: 6, col: 7 }.into(), Tile::Corp(Corp::Continental));
-        g.board.set_tile(Loc { row: 7, col: 6 }.into(), Tile::Corp(Corp::Continental));
-        g.board.set_tile(Loc { row: 7, col: 7 }.into(), Tile::Corp(Corp::Continental));
-        g.board.set_tile(Loc { row: 8, col: 5 }.into(), Tile::Corp(Corp::Continental));
-        g.board.set_tile(Loc { row: 8, col: 6 }.into(), Tile::Corp(Corp::Continental));
-        g.board.set_tile(Loc { row: 8, col: 7 }.into(), Tile::Corp(Corp::Continental));
-        g.board.set_tile(Loc { row: 8, col: 8 }.into(), Tile::Corp(Corp::Continental));
-        g.board.set_tile(Loc { row: 8, col: 9 }.into(), Tile::Corp(Corp::Continental));
-        g.board.set_tile(Loc { row: 8, col: 10 }.into(),
-                         Tile::Corp(Corp::Continental));
-        g.board.set_tile(Loc { row: 8, col: 11 }.into(),
-                         Tile::Corp(Corp::Continental));
+        g.board
+            .set_tile(Loc { row: 6, col: 6 }.into(), Tile::Corp(Corp::Continental));
+        g.board
+            .set_tile(Loc { row: 6, col: 7 }.into(), Tile::Corp(Corp::Continental));
+        g.board
+            .set_tile(Loc { row: 7, col: 6 }.into(), Tile::Corp(Corp::Continental));
+        g.board
+            .set_tile(Loc { row: 7, col: 7 }.into(), Tile::Corp(Corp::Continental));
+        g.board
+            .set_tile(Loc { row: 8, col: 5 }.into(), Tile::Corp(Corp::Continental));
+        g.board
+            .set_tile(Loc { row: 8, col: 6 }.into(), Tile::Corp(Corp::Continental));
+        g.board
+            .set_tile(Loc { row: 8, col: 7 }.into(), Tile::Corp(Corp::Continental));
+        g.board
+            .set_tile(Loc { row: 8, col: 8 }.into(), Tile::Corp(Corp::Continental));
+        g.board
+            .set_tile(Loc { row: 8, col: 9 }.into(), Tile::Corp(Corp::Continental));
+        g.board
+            .set_tile(Loc { row: 8, col: 10 }.into(),
+                      Tile::Corp(Corp::Continental));
+        g.board
+            .set_tile(Loc { row: 8, col: 11 }.into(),
+                      Tile::Corp(Corp::Continental));
 
         // Set starting shares.
         for c in Corp::iter() {
@@ -168,7 +207,10 @@ impl Gamer for Game {
 
     fn status(&self) -> Status {
         if self.finished {
-            Status::Finished { winners: vec![] }
+            Status::Finished {
+                winners: vec![],
+                stats: vec![],
+            }
         } else {
             Status::Active {
                 whose_turn: vec![self.phase.whose_turn()],
@@ -195,28 +237,50 @@ impl Gamer for Game {
     fn command(&mut self,
                player: usize,
                input: &str,
-               _players: &[String])
-               -> Result<(Vec<Log>, String), GameError> {
-        match parser::command().parse(input) {
-            Ok((Command::Play(loc), remaining)) => {
-                self.play(player, loc).map(|l| (l, remaining.to_string()))
+               players: &[String])
+               -> Result<CommandResponse> {
+        let parser =
+            self.command_parser(player)
+                .ok_or_else::<Error, _>(|| {
+                                            ErrorKind::InvalidInput("not your turn".to_string())
+                                                .into()
+                                        })?;
+        let output = parser.parse(input, players)?;
+        match output.value {
+                Command::Play(loc) => self.play(player, loc).map(|l| (l, true)),
+                Command::Buy(n, corp) => self.buy(player, n, corp).map(|l| (l, false)),
+                Command::Done => self.done(player).map(|l| (l, false)),
+                Command::Merge(corp, into) => self.merge(player, corp, into).map(|l| (l, false)),
+                Command::Sell(n) => self.sell(player, n).map(|l| (l, false)),
+                Command::Trade(n) => self.trade(player, n).map(|l| (l, false)),
+                Command::Keep => self.keep(player).map(|l| (l, false)),
+                Command::End => self.end(player).map(|l| (l, false)),
             }
-            Ok((Command::Buy(n, corp), remaining)) => {
-                self.buy(player, n, corp).map(|l| (l, remaining.to_string()))
-            }
-            Ok((Command::Done, remaining)) => self.done(player).map(|l| (l, remaining.to_string())),
-            Ok((Command::Merge(corp, into), remaining)) => {
-                self.merge(player, corp, into).map(|l| (l, remaining.to_string()))
-            }
-            Ok((Command::Sell(n), remaining)) => {
-                self.sell(player, n).map(|l| (l, remaining.to_string()))
-            }
-            Ok((Command::Trade(n), remaining)) => {
-                self.trade(player, n).map(|l| (l, remaining.to_string()))
-            }
-            Ok((Command::Keep, remaining)) => self.keep(player).map(|l| (l, remaining.to_string())),
-            Err(e) => Err(brdgme_game::parser::to_game_error(&e)),
-        }
+            .map(|(logs, can_undo)| {
+                     CommandResponse {
+                         logs,
+                         can_undo,
+                         remaining_input: output.remaining.to_string(),
+                     }
+                 })
+    }
+
+    fn player_count(&self) -> usize {
+        self.players.len()
+    }
+
+    fn player_counts() -> Vec<usize> {
+        (2..6).collect()
+    }
+
+    fn command_spec(&self, player: usize) -> Option<CommandSpec> {
+        self.command_parser(player).map(|p| p.to_spec())
+    }
+}
+
+impl Game {
+    fn can_end(&self) -> bool {
+        true
     }
 }
 
@@ -227,50 +291,53 @@ impl Game {
             _ => false,
         }
     }
-    pub fn play(&mut self, player: usize, _loc: Loc) -> Result<Vec<Log>, GameError> {
+    pub fn play(&mut self, player: usize, _loc: Loc) -> Result<Vec<Log>> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
         if !self.can_play(player) {
-            return Err(GameError::InvalidInput("You can't play a tile right now".to_string()));
+            return Err(ErrorKind::InvalidInput("You can't play a tile right now".to_string())
+                           .into());
         }
         panic!("Not implemented");
     }
 
-    pub fn buy(&mut self, player: usize, _n: usize, _corp: Corp) -> Result<Vec<Log>, GameError> {
+    pub fn buy(&mut self, player: usize, _n: usize, _corp: Corp) -> Result<Vec<Log>> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
         panic!("Not implemented");
     }
 
-    pub fn done(&mut self, player: usize) -> Result<Vec<Log>, GameError> {
+    pub fn done(&mut self, player: usize) -> Result<Vec<Log>> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
         panic!("Not implemented");
     }
 
-    pub fn merge(&mut self,
-                 player: usize,
-                 _corp: Corp,
-                 _into: Corp)
-                 -> Result<Vec<Log>, GameError> {
+    pub fn merge(&mut self, player: usize, _corp: Corp, _into: Corp) -> Result<Vec<Log>> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
         panic!("Not implemented");
     }
 
-    pub fn sell(&mut self, player: usize, _n: usize) -> Result<Vec<Log>, GameError> {
+    pub fn sell(&mut self, player: usize, _n: usize) -> Result<Vec<Log>> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
         panic!("Not implemented");
     }
 
-    pub fn trade(&mut self, player: usize, _n: usize) -> Result<Vec<Log>, GameError> {
+    pub fn trade(&mut self, player: usize, _n: usize) -> Result<Vec<Log>> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
         panic!("Not implemented");
     }
 
-    pub fn keep(&mut self, player: usize) -> Result<Vec<Log>, GameError> {
+    pub fn keep(&mut self, player: usize) -> Result<Vec<Log>> {
+        self.assert_not_finished()?;
+        self.assert_player_turn(player)?;
+        panic!("Not implemented");
+    }
+
+    pub fn end(&mut self, player: usize) -> Result<Vec<Log>> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
         panic!("Not implemented");

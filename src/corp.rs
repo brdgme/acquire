@@ -1,6 +1,7 @@
 use brdgme_color::*;
 
 use std::slice::Iter;
+use std::fmt;
 
 pub const SAFE_SIZE: usize = 11;
 pub const GAME_END_SIZE: usize = 41;
@@ -16,13 +17,13 @@ pub enum Corp {
     Tower,
 }
 
-static CORPS: [Corp; 7] = [Corp::Worldwide,
-                           Corp::Sackson,
-                           Corp::Festival,
-                           Corp::Imperial,
-                           Corp::American,
-                           Corp::Continental,
-                           Corp::Tower];
+pub static CORPS: [Corp; 7] = [Corp::Worldwide,
+                               Corp::Sackson,
+                               Corp::Festival,
+                               Corp::Imperial,
+                               Corp::American,
+                               Corp::Continental,
+                               Corp::Tower];
 
 fn additional_value(size: usize) -> usize {
     match size {
@@ -68,10 +69,16 @@ impl Corp {
     }
 
     pub fn name(self) -> String {
-        format!("{:?}", self)
+        format!("{}", self)
     }
 
     pub fn abbrev(self) -> String {
         self.name()[..2].to_uppercase()
+    }
+}
+
+impl fmt::Display for Corp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
     }
 }

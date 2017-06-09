@@ -68,10 +68,7 @@ fn empty_color(l: Loc) -> Color {
 }
 
 fn corp_main_text_thin(c: Corp, size: usize) -> Vec<N> {
-    vec![N::Fg(c.color()
-                   .inv()
-                   .mono()
-                   .into(),
+    vec![N::Fg(c.color().inv().mono().into(),
                vec![N::Align(A::Center,
                              TILE_WIDTH,
                              vec![N::text(format!("{}\n${}", c.abbrev(), c.value(size)))])])]
@@ -80,10 +77,7 @@ fn corp_main_text_thin(c: Corp, size: usize) -> Vec<N> {
 fn corp_main_text_wide(c: Corp, size: usize) -> Vec<N> {
     let mut c_name = c.name();
     c_name.truncate(TILE_WIDTH * 2 - 2);
-    vec![N::Fg(c.color()
-                   .inv()
-                   .mono()
-                   .into(),
+    vec![N::Fg(c.color().inv().mono().into(),
                vec![N::Align(A::Center,
                              TILE_WIDTH * 2,
                              vec![N::text(format!("{}\n${}", c_name, c.value(size)))])])]
@@ -125,7 +119,8 @@ impl Board {
                          render_y,
                          vec![N::Align(A::Center,
                                        TILE_WIDTH,
-                                       vec![N::Bold(vec![N::Fg(AVAILABLE_LOC_BG.inv()
+                                       vec![N::Bold(vec![N::Fg(AVAILABLE_LOC_BG
+                                                                   .inv()
                                                                    .mono()
                                                                    .into(),
                                                                vec![N::text(l.name())])])])]));
@@ -141,10 +136,7 @@ impl Board {
                     let mut start: Option<usize> = None;
                     board::cols()
                         .filter_map(|col| {
-                            let l = Loc {
-                                row: row,
-                                col: col,
-                            };
+                            let l = Loc { row: row, col: col };
                             match self.get_tile(l.into()) {
                                 Tile::Corp(tc) if tc == *c => {
                                     if start.is_none() {
@@ -189,11 +181,7 @@ impl Board {
 impl Corp {
     pub fn render_in_color(self, content: Vec<N>) -> N {
         N::Bg(self.color().into(),
-              vec![N::Fg(self.color()
-                             .mono()
-                             .inv()
-                             .into(),
-                         vec![N::Bold(content)])])
+              vec![N::Fg(self.color().mono().inv().into(), vec![N::Bold(content)])])
     }
 
     pub fn render_name(self) -> N {
