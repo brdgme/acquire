@@ -10,6 +10,7 @@ use std::usize;
 
 pub enum Command {
     Play(Loc),
+    Found(Corp),
     Buy(usize, Corp),
     Done,
     Merge(Corp, Corp),
@@ -29,6 +30,12 @@ impl Game {
             match self.phase {
                 Phase::Play(_) => {
                     parsers.push(Box::new(self.play_parser(player)));
+                }
+                Phase::Found { .. } => {
+                    parsers.push(Box::new(self.found_parser(self.board
+                                                                .available_corps()
+                                                                .into_iter()
+                                                                .collect())));
                 }
                 Phase::Buy { remaining, .. } => {
                     parsers.push(Box::new(self.buy_parser(player, remaining)));
@@ -63,6 +70,16 @@ impl Game {
                                                              .map(|p| p.tiles.clone())
                                                              .unwrap_or_else(|| vec![])))),
                  |(_, loc)| Command::Play(loc))
+    }
+
+    fn found_parser(&self, corps: Vec<Corp>) -> impl Parser<Command> {
+        Map::new(Chain2::new(Doc::name_desc("found",
+                                            "found a new corporation",
+                                            Token::new("found")),
+                             AfterSpace::new(Doc::name_desc("(corp)",
+                                                            "the corporation to found",
+                                                            Enum::partial(corps)))),
+                 |(_, corp)| Command::Found(corp))
     }
 
     fn buy_parser(&self, _player: usize, remaining: usize) -> impl Parser<Command> {

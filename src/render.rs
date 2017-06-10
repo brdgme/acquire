@@ -90,7 +90,7 @@ impl Board {
         for l in Loc::all() {
             let render_x = l.col * TILE_WIDTH;
             let render_y = l.row * TILE_HEIGHT;
-            match self.get_tile(l.into()) {
+            match self.get_tile(&l) {
                 Tile::Empty => {
                     layers.push((render_x, render_y, vec![tile_background(empty_color(l))]));
                     layers.push((render_x,
@@ -137,7 +137,7 @@ impl Board {
                     board::cols()
                         .filter_map(|col| {
                             let l = Loc { row: row, col: col };
-                            match self.get_tile(l.into()) {
+                            match self.get_tile(&l) {
                                 Tile::Corp(tc) if tc == *c => {
                                     if start.is_none() {
                                         start = Some(col);

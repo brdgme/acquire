@@ -36,6 +36,7 @@ pub const TILE_HAND_SIZE: usize = 6;
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum Phase {
     Play(usize),
+    Found { player: usize, at: Loc },
     Buy { player: usize, remaining: usize },
     ChooseMerger(usize),
     SellOrTrade {
@@ -49,6 +50,7 @@ impl Phase {
     pub fn whose_turn(&self) -> usize {
         match *self {
             Phase::Play(player) |
+            Phase::Found { player, .. } |
             Phase::Buy { player, .. } |
             Phase::ChooseMerger(player) |
             Phase::SellOrTrade { player, .. } => player,
@@ -105,7 +107,7 @@ impl Gamer for Game {
 
         // Place initial tiles onto the board.
         for l in g.draw_tiles.drain(0..players) {
-            g.board.set_tile(l.into(), Tile::Unincorporated);
+            g.board.set_tile(&l, Tile::Unincorporated);
         }
 
         // Set starting shares.
@@ -170,6 +172,7 @@ impl Gamer for Game {
         let output = parser.parse(input, players)?;
         match output.value {
                 Command::Play(loc) => self.play(player, &loc),
+                Command::Found(corp) => self.found(player, &corp),
                 Command::Buy(n, corp) => self.buy(player, n, corp).map(|l| (l, false)),
                 Command::Done => self.done(player).map(|l| (l, false)),
                 Command::Merge(corp, into) => self.merge(player, corp, into).map(|l| (l, false)),
@@ -213,6 +216,31 @@ impl Game {
             _ => false,
         }
     }
+
+    pub fn assert_loc_playable(&self, loc: &Loc) -> Result<()> {
+        if self.board.get_tile(loc) != Tile::Empty {
+            bail!(ErrorKind::InvalidInput("location not empty".into()));
+        }
+        // Disallow joining multiple neighboring safe corps.
+        let mut neighbouring: Option<Corp> = None;
+        for n_loc in &loc.neighbours() {
+            if let Tile::Corp(c) = self.board.get_tile(n_loc) {
+                if self.board.corp_is_safe(c) {
+                    if let Some(nc) = neighbouring {
+                        if c != nc {
+                            bail!(ErrorKind::InvalidInput(format!("can't merge {} and {} as they are both safe",
+                                                                  c,
+                                                                  nc)));
+                        }
+                    }
+                    neighbouring = Some(c);
+                }
+            }
+        }
+        // Disallow founding a corp if there are no new ones available.
+        Ok(())
+    }
+
     pub fn play(&mut self, player: usize, loc: &Loc) -> Result<(Vec<Log>, bool)> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
@@ -220,17 +248,40 @@ impl Game {
             return Err(ErrorKind::InvalidInput("You can't play a tile right now".to_string())
                            .into());
         }
-        {
-            let mut player = self.players.get_mut(&player).unwrap();
-            let pos = match player.tiles.iter().position(|l| l == loc) {
-                Some(p) => p,
-                None => bail!(ErrorKind::InvalidInput("You don't have that tile".to_string())),
-            };
-            self.board
-                .set_tile(loc.to_owned().into(), Tile::Unincorporated);
-            player.tiles.swap_remove(pos);
+        let pos = match self.players
+                  .get(&player)
+                  .unwrap()
+                  .tiles
+                  .iter()
+                  .position(|l| l == loc) {
+            Some(p) => p,
+            None => bail!(ErrorKind::InvalidInput("You don't have that tile".to_string())),
+        };
+        let neighbouring_corps = self.board.neighbouring_corps(loc);
+        match neighbouring_corps.len() {
+            1 => {
+                self.board
+                    .extend_corp(loc, neighbouring_corps.iter().next().unwrap());
+                self.buy_phase();
+            }
+            0 => {
+                self.board.set_tile(loc, Tile::Unincorporated);
+                if loc.neighbours()
+                       .iter()
+                       .any(|n_loc| self.board.get_tile(n_loc) == Tile::Unincorporated) {
+                    self.found_phase(loc.to_owned());
+                } else {
+                    self.buy_phase();
+                }
+            }
+            _ => {}
         }
-        self.buy_phase();
+        self.board.set_tile(loc, Tile::Unincorporated);
+        self.players
+            .get_mut(&player)
+            .unwrap()
+            .tiles
+            .swap_remove(pos);
         Ok((vec![], true))
     }
 
@@ -239,6 +290,31 @@ impl Game {
             player: self.phase.whose_turn(),
             remaining: 3,
         };
+    }
+
+    fn found_phase(&mut self, loc: Loc) {
+        self.phase = Phase::Found {
+            player: self.phase.whose_turn(),
+            at: loc,
+        }
+    }
+
+    pub fn found(&mut self, player: usize, corp: &Corp) -> Result<(Vec<Log>, bool)> {
+        self.assert_not_finished()?;
+        self.assert_player_turn(player)?;
+        let at = match self.phase {
+            Phase::Found { at, .. } => at,
+            _ => {
+                bail!(ErrorKind::InvalidInput("not able to found a corporation at the moment"
+                                                  .to_string()))
+            }
+        };
+        if !self.board.available_corps().contains(corp) {
+            bail!(ErrorKind::InvalidInput(format!("{} is already on the board", corp)));
+        }
+        self.board.extend_corp(&at, corp);
+        self.buy_phase();
+        Ok((vec![], true))
     }
 
     pub fn buy(&mut self, player: usize, _n: usize, _corp: Corp) -> Result<Vec<Log>> {
@@ -250,7 +326,19 @@ impl Game {
     pub fn done(&mut self, player: usize) -> Result<Vec<Log>> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
-        panic!("Not implemented");
+        match self.phase {
+            Phase::Buy { .. } => Ok(self.end_turn()),
+            _ => bail!(ErrorKind::InvalidInput("can't end your turn at the moment".to_string())),
+        }
+    }
+
+    fn end_turn(&mut self) -> Vec<Log> {
+        self.phase = Phase::Play(self.next_player(self.phase.whose_turn()));
+        vec![]
+    }
+
+    fn next_player(&self, player: usize) -> usize {
+        (player + 1) % self.players.len()
     }
 
     pub fn merge(&mut self, player: usize, _corp: Corp, _into: Corp) -> Result<Vec<Log>> {

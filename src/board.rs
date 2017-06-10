@@ -1,8 +1,9 @@
 use super::corp::{self, Corp};
 
-use std::iter;
+use std::iter::{self, FromIterator};
 use std::ops::Range;
 use std::fmt;
+use std::collections::HashSet;
 
 pub const WIDTH: usize = 12;
 pub const HEIGHT: usize = 9;
@@ -26,17 +27,18 @@ impl Default for Tile {
 pub struct Board(pub Vec<Tile>);
 
 impl Board {
-    pub fn get_tile(&self, at: usize) -> Tile {
-        self.0.get(at).cloned().unwrap_or_default()
+    pub fn get_tile<T: Into<usize>>(&self, at: T) -> Tile {
+        self.0.get(at.into()).cloned().unwrap_or_default()
     }
 
-    pub fn set_tile(&mut self, at: usize, t: Tile) {
+    pub fn set_tile<T: Into<usize>>(&mut self, at: T, t: Tile) {
         let len = self.0.len();
-        if len <= at {
+        let at_u = at.into();
+        if len <= at_u {
             self.0
-                .extend(iter::repeat(Tile::default()).take(at - len + 1))
+                .extend(iter::repeat(Tile::default()).take(at_u - len + 1))
         }
-        self.0[at] = t;
+        self.0[at_u] = t;
     }
 
     pub fn corp_size(&self, c: Corp) -> usize {
@@ -51,6 +53,35 @@ impl Board {
 
     pub fn corp_is_safe(&self, c: Corp) -> bool {
         self.corp_size(c) >= corp::SAFE_SIZE
+    }
+
+    pub fn available_corps(&self) -> HashSet<Corp> {
+        let mut corps: HashSet<Corp> = HashSet::from_iter(Corp::iter().cloned());
+        for l in &Loc::all() {
+            if let Tile::Corp(c) = self.get_tile(l) {
+                corps.remove(&c);
+            }
+        }
+        corps
+    }
+
+    pub fn neighbouring_corps(&self, loc: &Loc) -> HashSet<Corp> {
+        let mut corps: HashSet<Corp> = HashSet::new();
+        for n_loc in &loc.neighbours() {
+            if let Tile::Corp(c) = self.get_tile(n_loc) {
+                corps.insert(c);
+            }
+        }
+        corps
+    }
+
+    pub fn extend_corp(&mut self, loc: &Loc, corp: &Corp) {
+        self.set_tile(loc, Tile::Corp(corp.to_owned()));
+        for n_loc in &loc.neighbours() {
+            if self.get_tile(n_loc) == Tile::Unincorporated {
+                self.extend_corp(n_loc, corp);
+            }
+        }
     }
 }
 
@@ -130,9 +161,15 @@ impl From<usize> for Loc {
     }
 }
 
+impl<'a> From<&'a Loc> for usize {
+    fn from(l: &Loc) -> Self {
+        l.row * WIDTH + l.col
+    }
+}
+
 impl From<Loc> for usize {
     fn from(l: Loc) -> Self {
-        l.row * WIDTH + l.col
+        (&l).into()
     }
 }
 
@@ -160,29 +197,29 @@ mod tests {
     #[test]
     fn board_get_tile_works() {
         let mut b = Board::default();
-        b.set_tile(5, Tile::Discarded);
-        assert_eq!(Tile::Discarded, b.get_tile(5));
-        assert_eq!(Tile::Empty, b.get_tile(99999));
+        b.set_tile(5usize, Tile::Discarded);
+        assert_eq!(Tile::Discarded, b.get_tile(5usize));
+        assert_eq!(Tile::Empty, b.get_tile(99999usize));
     }
 
     #[test]
     fn board_indexing_by_loc_works() {
         let b = Board::default();
-        assert_eq!(Tile::Empty, b.get_tile(Loc { row: 5, col: 4 }.into()));
+        assert_eq!(Tile::Empty, b.get_tile(Loc { row: 5, col: 4 }));
     }
 
     #[test]
     fn board_set_tile_works() {
         let mut b = Board::default();
-        b.set_tile(99999, Tile::Unincorporated);
+        b.set_tile(99999usize, Tile::Unincorporated);
     }
 
     #[test]
     fn board_corp_size_works() {
         let mut b = Board::default();
-        b.set_tile(2, Tile::Corp(Corp::American));
-        b.set_tile(3, Tile::Corp(Corp::American));
-        b.set_tile(4, Tile::Corp(Corp::Sackson));
+        b.set_tile(2usize, Tile::Corp(Corp::American));
+        b.set_tile(3usize, Tile::Corp(Corp::American));
+        b.set_tile(4usize, Tile::Corp(Corp::Sackson));
         assert_eq!(0, b.corp_size(Corp::Continental));
         assert_eq!(1, b.corp_size(Corp::Sackson));
         assert_eq!(2, b.corp_size(Corp::American));
