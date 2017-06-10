@@ -8,6 +8,8 @@ brdgme-game = { git = "https://github.com/brdgme/game.git" }
 brdgme-color = { git = "https://github.com/brdgme/color.git" }
 brdgme-markup = { git = "https://github.com/brdgme/markup.git" }
 brdgme-cmd = { git = "https://github.com/brdgme/cmd.git" }
+brdgme-rand-bot = { git = "https://github.com/brdgme/rand-bot.git" }
 rand = "0.3.15"
 serde = "1.0.8"
 serde_derive = "1.0.8"
+error-chain = "0.10.0"

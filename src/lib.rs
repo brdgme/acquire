@@ -2,6 +2,8 @@
 extern crate rand;
 #[macro_use]
 extern crate serde_derive;
+#[macro_use]
+extern crate error_chain;
 
 extern crate brdgme_game;
 extern crate brdgme_color;
@@ -106,86 +108,6 @@ impl Gamer for Game {
             g.board.set_tile(l.into(), Tile::Unincorporated);
         }
 
-        // Fudge some data for testing.
-        // TODO: remove
-        g.board
-            .set_tile(Loc { row: 0, col: 1 }.into(), Tile::Unincorporated);
-        g.board
-            .set_tile(Loc { row: 0, col: 0 }.into(), Tile::Discarded);
-
-        g.board
-            .set_tile(Loc { row: 5, col: 4 }.into(), Tile::Corp(Corp::Worldwide));
-        g.board
-            .set_tile(Loc { row: 6, col: 4 }.into(), Tile::Corp(Corp::Worldwide));
-
-        g.board
-            .set_tile(Loc { row: 2, col: 2 }.into(), Tile::Corp(Corp::Sackson));
-        g.board
-            .set_tile(Loc { row: 2, col: 3 }.into(), Tile::Corp(Corp::Sackson));
-
-        g.board
-            .set_tile(Loc { row: 3, col: 6 }.into(), Tile::Corp(Corp::Festival));
-        g.board
-            .set_tile(Loc { row: 3, col: 7 }.into(), Tile::Corp(Corp::Festival));
-        g.board
-            .set_tile(Loc { row: 4, col: 6 }.into(), Tile::Corp(Corp::Festival));
-
-        g.board
-            .set_tile(Loc { row: 1, col: 8 }.into(), Tile::Corp(Corp::American));
-        g.board
-            .set_tile(Loc { row: 1, col: 9 }.into(), Tile::Corp(Corp::American));
-        g.board
-            .set_tile(Loc { row: 1, col: 10 }.into(), Tile::Corp(Corp::American));
-        g.board
-            .set_tile(Loc { row: 1, col: 11 }.into(), Tile::Corp(Corp::American));
-
-        g.board
-            .set_tile(Loc { row: 3, col: 9 }.into(), Tile::Corp(Corp::Imperial));
-        g.board
-            .set_tile(Loc { row: 4, col: 9 }.into(), Tile::Corp(Corp::Imperial));
-        g.board
-            .set_tile(Loc { row: 5, col: 9 }.into(), Tile::Corp(Corp::Imperial));
-        g.board
-            .set_tile(Loc { row: 6, col: 9 }.into(), Tile::Corp(Corp::Imperial));
-
-        g.board
-            .set_tile(Loc { row: 5, col: 2 }.into(), Tile::Corp(Corp::Tower));
-        g.board
-            .set_tile(Loc { row: 6, col: 2 }.into(), Tile::Corp(Corp::Tower));
-        g.board
-            .set_tile(Loc { row: 7, col: 2 }.into(), Tile::Corp(Corp::Tower));
-        g.board
-            .set_tile(Loc { row: 8, col: 2 }.into(), Tile::Corp(Corp::Tower));
-        g.board
-            .set_tile(Loc { row: 7, col: 1 }.into(), Tile::Corp(Corp::Tower));
-        g.board
-            .set_tile(Loc { row: 7, col: 3 }.into(), Tile::Corp(Corp::Tower));
-
-        g.board
-            .set_tile(Loc { row: 6, col: 6 }.into(), Tile::Corp(Corp::Continental));
-        g.board
-            .set_tile(Loc { row: 6, col: 7 }.into(), Tile::Corp(Corp::Continental));
-        g.board
-            .set_tile(Loc { row: 7, col: 6 }.into(), Tile::Corp(Corp::Continental));
-        g.board
-            .set_tile(Loc { row: 7, col: 7 }.into(), Tile::Corp(Corp::Continental));
-        g.board
-            .set_tile(Loc { row: 8, col: 5 }.into(), Tile::Corp(Corp::Continental));
-        g.board
-            .set_tile(Loc { row: 8, col: 6 }.into(), Tile::Corp(Corp::Continental));
-        g.board
-            .set_tile(Loc { row: 8, col: 7 }.into(), Tile::Corp(Corp::Continental));
-        g.board
-            .set_tile(Loc { row: 8, col: 8 }.into(), Tile::Corp(Corp::Continental));
-        g.board
-            .set_tile(Loc { row: 8, col: 9 }.into(), Tile::Corp(Corp::Continental));
-        g.board
-            .set_tile(Loc { row: 8, col: 10 }.into(),
-                      Tile::Corp(Corp::Continental));
-        g.board
-            .set_tile(Loc { row: 8, col: 11 }.into(),
-                      Tile::Corp(Corp::Continental));
-
         // Set starting shares.
         for c in Corp::iter() {
             g.shares.insert(*c, STARTING_SHARES);
@@ -247,7 +169,7 @@ impl Gamer for Game {
                                         })?;
         let output = parser.parse(input, players)?;
         match output.value {
-                Command::Play(loc) => self.play(player, loc).map(|l| (l, true)),
+                Command::Play(loc) => self.play(player, &loc),
                 Command::Buy(n, corp) => self.buy(player, n, corp).map(|l| (l, false)),
                 Command::Done => self.done(player).map(|l| (l, false)),
                 Command::Merge(corp, into) => self.merge(player, corp, into).map(|l| (l, false)),
@@ -280,7 +202,7 @@ impl Gamer for Game {
 
 impl Game {
     fn can_end(&self) -> bool {
-        true
+        false
     }
 }
 
@@ -291,14 +213,32 @@ impl Game {
             _ => false,
         }
     }
-    pub fn play(&mut self, player: usize, _loc: Loc) -> Result<Vec<Log>> {
+    pub fn play(&mut self, player: usize, loc: &Loc) -> Result<(Vec<Log>, bool)> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
         if !self.can_play(player) {
             return Err(ErrorKind::InvalidInput("You can't play a tile right now".to_string())
                            .into());
         }
-        panic!("Not implemented");
+        {
+            let mut player = self.players.get_mut(&player).unwrap();
+            let pos = match player.tiles.iter().position(|l| l == loc) {
+                Some(p) => p,
+                None => bail!(ErrorKind::InvalidInput("You don't have that tile".to_string())),
+            };
+            self.board
+                .set_tile(loc.to_owned().into(), Tile::Unincorporated);
+            player.tiles.swap_remove(pos);
+        }
+        self.buy_phase();
+        Ok((vec![], true))
+    }
+
+    fn buy_phase(&mut self) {
+        self.phase = Phase::Buy {
+            player: self.phase.whose_turn(),
+            remaining: 3,
+        };
     }
 
     pub fn buy(&mut self, player: usize, _n: usize, _corp: Corp) -> Result<Vec<Log>> {
