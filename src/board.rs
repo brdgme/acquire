@@ -41,17 +41,17 @@ impl Board {
         self.0[at_u] = t;
     }
 
-    pub fn corp_size(&self, c: Corp) -> usize {
+    pub fn corp_size(&self, c: &Corp) -> usize {
         self.0
             .iter()
             .filter(|t| match **t {
-                        Tile::Corp(tc) if tc == c => true,
+                        Tile::Corp(tc) if tc == *c => true,
                         _ => false,
                     })
             .count()
     }
 
-    pub fn corp_is_safe(&self, c: Corp) -> bool {
+    pub fn corp_is_safe(&self, c: &Corp) -> bool {
         self.corp_size(c) >= corp::SAFE_SIZE
     }
 
@@ -220,8 +220,8 @@ mod tests {
         b.set_tile(2usize, Tile::Corp(Corp::American));
         b.set_tile(3usize, Tile::Corp(Corp::American));
         b.set_tile(4usize, Tile::Corp(Corp::Sackson));
-        assert_eq!(0, b.corp_size(Corp::Continental));
-        assert_eq!(1, b.corp_size(Corp::Sackson));
-        assert_eq!(2, b.corp_size(Corp::American));
+        assert_eq!(0, b.corp_size(&Corp::Continental));
+        assert_eq!(1, b.corp_size(&Corp::Sackson));
+        assert_eq!(2, b.corp_size(&Corp::American));
     }
 }

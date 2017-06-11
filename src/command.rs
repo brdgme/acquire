@@ -41,8 +41,11 @@ impl Game {
                     parsers.push(Box::new(self.buy_parser(player, remaining)));
                     parsers.push(Box::new(buy_done_parser()));
                 }
-                Phase::ChooseMerger(..) => {
-                    parsers.push(Box::new(self.merge_parser(&CORPS)));
+                Phase::ChooseMerger { at, .. } => {
+                    parsers.push(Box::new(self.merge_parser(&self.board
+                                                                 .neighbouring_corps(&at)
+                                                                 .into_iter()
+                                                                 .collect::<Vec<Corp>>())));
                 }
                 Phase::SellOrTrade { player, corp, .. } => {
                     parsers.push(Box::new(self.sell_parser(player, corp)));

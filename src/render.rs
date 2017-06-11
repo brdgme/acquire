@@ -67,14 +67,14 @@ fn empty_color(l: Loc) -> Color {
     }
 }
 
-fn corp_main_text_thin(c: Corp, size: usize) -> Vec<N> {
+fn corp_main_text_thin(c: &Corp, size: usize) -> Vec<N> {
     vec![N::Fg(c.color().inv().mono().into(),
                vec![N::Align(A::Center,
                              TILE_WIDTH,
                              vec![N::text(format!("{}\n${}", c.abbrev(), c.value(size)))])])]
 }
 
-fn corp_main_text_wide(c: Corp, size: usize) -> Vec<N> {
+fn corp_main_text_wide(c: &Corp, size: usize) -> Vec<N> {
     let mut c_name = c.name();
     c_name.truncate(TILE_WIDTH * 2 - 2);
     vec![N::Fg(c.color().inv().mono().into(),
@@ -166,9 +166,9 @@ impl Board {
                 c_text.push(((x + (w - 1) / 2) * TILE_WIDTH,
                              y * TILE_HEIGHT,
                              if w > 1 {
-                                 corp_main_text_wide(*c, self.corp_size(*c))
+                                 corp_main_text_wide(c, self.corp_size(c))
                              } else {
-                                 corp_main_text_thin(*c, self.corp_size(*c))
+                                 corp_main_text_thin(c, self.corp_size(c))
                              }));
             }
             c_text

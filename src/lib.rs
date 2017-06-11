@@ -38,7 +38,7 @@ pub enum Phase {
     Play(usize),
     Found { player: usize, at: Loc },
     Buy { player: usize, remaining: usize },
-    ChooseMerger(usize),
+    ChooseMerger { player: usize, at: Loc },
     SellOrTrade {
         player: usize,
         corp: Corp,
@@ -52,7 +52,7 @@ impl Phase {
             Phase::Play(player) |
             Phase::Found { player, .. } |
             Phase::Buy { player, .. } |
-            Phase::ChooseMerger(player) |
+            Phase::ChooseMerger { player, .. } |
             Phase::SellOrTrade { player, .. } => player,
         }
     }
@@ -217,28 +217,17 @@ impl Game {
         }
     }
 
-    pub fn assert_loc_playable(&self, loc: &Loc) -> Result<()> {
-        if self.board.get_tile(loc) != Tile::Empty {
-            bail!(ErrorKind::InvalidInput("location not empty".into()));
+    fn draw_replacement_tiles(&mut self, player: usize) -> (Vec<Log>, bool) {
+        let p = self.players
+            .get_mut(&player)
+            .expect(&format!("could not find player state for {}", player));
+        let remaining = TILE_HAND_SIZE - p.tiles.len();
+        if self.draw_tiles.len() < remaining {
+            // End of game
+            return (vec![], false);
         }
-        // Disallow joining multiple neighboring safe corps.
-        let mut neighbouring: Option<Corp> = None;
-        for n_loc in &loc.neighbours() {
-            if let Tile::Corp(c) = self.board.get_tile(n_loc) {
-                if self.board.corp_is_safe(c) {
-                    if let Some(nc) = neighbouring {
-                        if c != nc {
-                            bail!(ErrorKind::InvalidInput(format!("can't merge {} and {} as they are both safe",
-                                                                  c,
-                                                                  nc)));
-                        }
-                    }
-                    neighbouring = Some(c);
-                }
-            }
-        }
-        // Disallow founding a corp if there are no new ones available.
-        Ok(())
+        p.tiles.extend(self.draw_tiles.drain(0..remaining));
+        (vec![], true)
     }
 
     pub fn play(&mut self, player: usize, loc: &Loc) -> Result<(Vec<Log>, bool)> {
@@ -250,7 +239,7 @@ impl Game {
         }
         let pos = match self.players
                   .get(&player)
-                  .unwrap()
+                  .expect(&format!("could not find player state for {}", player))
                   .tiles
                   .iter()
                   .position(|l| l == loc) {
@@ -265,21 +254,39 @@ impl Game {
                 self.buy_phase();
             }
             0 => {
-                self.board.set_tile(loc, Tile::Unincorporated);
                 if loc.neighbours()
                        .iter()
                        .any(|n_loc| self.board.get_tile(n_loc) == Tile::Unincorporated) {
+                    if self.board.available_corps().is_empty() {
+                        bail!(ErrorKind::InvalidInput(
+                            "there aren't any corporations available to found".to_string(),
+                        ));
+                    }
                     self.found_phase(loc.to_owned());
                 } else {
                     self.buy_phase();
                 }
+                // Set the tile last as errors can be thrown above.
+                self.board.set_tile(loc, Tile::Unincorporated);
             }
-            _ => {}
+            _ => {
+                if neighbouring_corps
+                       .iter()
+                       .fold(0, |acc, corp| if self.board.corp_is_safe(corp) {
+                    acc + 1
+                } else {
+                    acc
+                }) > 1 {
+                    bail!(ErrorKind::InvalidInput("can't merge safe corporations together"
+                                                      .to_string()));
+                }
+                self.board.set_tile(loc, Tile::Unincorporated);
+                self.choose_merger_phase(*loc);
+            }
         }
-        self.board.set_tile(loc, Tile::Unincorporated);
         self.players
             .get_mut(&player)
-            .unwrap()
+            .expect(&format!("could not find player state for {}", player))
             .tiles
             .swap_remove(pos);
         Ok((vec![], true))
@@ -294,6 +301,13 @@ impl Game {
 
     fn found_phase(&mut self, loc: Loc) {
         self.phase = Phase::Found {
+            player: self.phase.whose_turn(),
+            at: loc,
+        }
+    }
+
+    fn choose_merger_phase(&mut self, loc: Loc) {
+        self.phase = Phase::ChooseMerger {
             player: self.phase.whose_turn(),
             at: loc,
         }
@@ -333,7 +347,9 @@ impl Game {
     }
 
     fn end_turn(&mut self) -> Vec<Log> {
-        self.phase = Phase::Play(self.next_player(self.phase.whose_turn()));
+        let current_player = self.phase.whose_turn();
+        self.draw_replacement_tiles(current_player);
+        self.phase = Phase::Play(self.next_player(current_player));
         vec![]
     }
 
