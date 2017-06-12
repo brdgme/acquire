@@ -171,23 +171,22 @@ impl Gamer for Game {
                                         })?;
         let output = parser.parse(input, players)?;
         match output.value {
-                Command::Play(loc) => self.play(player, &loc),
-                Command::Found(corp) => self.found(player, &corp),
-                Command::Buy(n, corp) => self.buy(player, n, corp).map(|l| (l, false)),
-                Command::Done => self.done(player).map(|l| (l, false)),
-                Command::Merge(corp, into) => self.merge(player, corp, into).map(|l| (l, false)),
-                Command::Sell(n) => self.sell(player, n).map(|l| (l, false)),
-                Command::Trade(n) => self.trade(player, n).map(|l| (l, false)),
-                Command::Keep => self.keep(player).map(|l| (l, false)),
-                Command::End => self.end(player).map(|l| (l, false)),
-            }
-            .map(|(logs, can_undo)| {
-                     CommandResponse {
-                         logs,
-                         can_undo,
-                         remaining_input: output.remaining.to_string(),
-                     }
-                 })
+            Command::Play(loc) => self.play(player, &loc),
+            Command::Found(corp) => self.found(player, &corp),
+            Command::Buy(n, corp) => self.buy(player, n, corp).map(|l| (l, false)),
+            Command::Done => self.done(player).map(|l| (l, false)),
+            Command::Merge(corp, into) => self.merge(player, corp, into).map(|l| (l, false)),
+            Command::Sell(n) => self.sell(player, n).map(|l| (l, false)),
+            Command::Trade(n) => self.trade(player, n).map(|l| (l, false)),
+            Command::Keep => self.keep(player).map(|l| (l, false)),
+            Command::End => self.end(player).map(|l| (l, false)),
+        }.map(|(logs, can_undo)| {
+                  CommandResponse {
+                      logs,
+                      can_undo,
+                      remaining_input: output.remaining.to_string(),
+                  }
+              })
     }
 
     fn player_count(&self) -> usize {
@@ -410,9 +409,9 @@ impl Into<PubState> for Game {
         PubState {
             phase: self.phase,
             priv_state: None,
-            players: HashMap::from_iter(self.players.iter().map(|(k, v)| {
-                                                                    (*k, v.to_owned().into())
-                                                                })),
+            players: HashMap::from_iter(self.players
+                                            .iter()
+                                            .map(|(k, v)| (*k, v.to_owned().into()))),
             board: self.board,
             shares: self.shares,
             remaining_tiles: self.draw_tiles.len(),

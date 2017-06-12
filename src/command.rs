@@ -43,9 +43,9 @@ impl Game {
                 }
                 Phase::ChooseMerger { at, .. } => {
                     parsers.push(Box::new(self.merge_parser(&self.board
-                                                                 .neighbouring_corps(&at)
-                                                                 .into_iter()
-                                                                 .collect::<Vec<Corp>>())));
+                                                                .neighbouring_corps(&at)
+                                                                .into_iter()
+                                                                .collect::<Vec<Corp>>())));
                 }
                 Phase::SellOrTrade { player, corp, .. } => {
                     parsers.push(Box::new(self.sell_parser(player, corp)));
@@ -68,10 +68,10 @@ impl Game {
         Map::new(Chain2::new(Doc::name_desc("play",
                                             "play a tile to the board",
                                             Token::new("play")),
-                             AfterSpace::new(Enum::exact(self.players
+                             AfterSpace::new(Doc::name("tile", Enum::exact(self.players
                                                              .get(&player)
                                                              .map(|p| p.tiles.clone())
-                                                             .unwrap_or_else(|| vec![])))),
+                                                             .unwrap_or_else(|| vec![]))))),
                  |(_, loc)| Command::Play(loc))
     }
 
@@ -79,7 +79,7 @@ impl Game {
         Map::new(Chain2::new(Doc::name_desc("found",
                                             "found a new corporation",
                                             Token::new("found")),
-                             AfterSpace::new(Doc::name_desc("(corp)",
+                             AfterSpace::new(Doc::name_desc("corp",
                                                             "the corporation to found",
                                                             Enum::partial(corps)))),
                  |(_, corp)| Command::Found(corp))
@@ -90,7 +90,7 @@ impl Game {
                              AfterSpace::new(Doc::name_desc("#",
                                                             "number of shares to buy",
                                                             Int::bounded(1, remaining as i32))),
-                             AfterSpace::new(Doc::name_desc("(corp)",
+                             AfterSpace::new(Doc::name_desc("corp",
                                                             "the corporation to buy shares in",
                                                             Enum::partial(CORPS.to_vec())))),
                  |(_, n, corp)| Command::Buy(n as usize, corp))
@@ -128,11 +128,11 @@ impl Game {
         Map::new(Chain4::new(Doc::name_desc("merge",
                                             "choose which corporation to merge into another",
                                             Token::new("merge")),
-                             AfterSpace::new(Doc::name_desc("(corp)",
+                             AfterSpace::new(Doc::name_desc("corp",
                                                             "the corporation to merge into another",
                                                             Enum::partial(corps.to_owned()))),
-                             Token::new("into"),
-                             AfterSpace::new(Doc::name_desc("(corp)",
+                             AfterSpace::new(Token::new("into")),
+                             AfterSpace::new(Doc::name_desc("corp",
                                                             "the corporation to be merged into",
                                                             Enum::partial(corps.to_owned())))),
                  |(_, from, _, into)| Command::Merge(from, into))
