@@ -43,9 +43,9 @@ impl Game {
                 }
                 Phase::ChooseMerger { at, .. } => {
                     parsers.push(Box::new(self.merge_parser(&self.board
-                                                                .neighbouring_corps(&at)
-                                                                .into_iter()
-                                                                .collect::<Vec<Corp>>())));
+                                                                 .neighbouring_corps(&at)
+                                                                 .into_iter()
+                                                                 .collect::<Vec<Corp>>())));
                 }
                 Phase::SellOrTrade { player, corp, .. } => {
                     parsers.push(Box::new(self.sell_parser(player, corp)));
@@ -69,7 +69,7 @@ impl Game {
                                             "play a tile to the board",
                                             Token::new("play")),
                              AfterSpace::new(Doc::name("tile", Enum::exact(self.players
-                                                             .get(&player)
+                                                             .get(player)
                                                              .map(|p| p.tiles.clone())
                                                              .unwrap_or_else(|| vec![]))))),
                  |(_, loc)| Command::Play(loc))
@@ -119,7 +119,7 @@ impl Game {
     fn player_shares_parser(&self, player: usize, corp: Corp) -> impl Parser<i32> {
         Int::bounded(1,
                      self.players
-                         .get(&player)
+                         .get(player)
                          .and_then(|p| p.shares.get(&corp).cloned())
                          .unwrap_or(1) as i32)
     }

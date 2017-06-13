@@ -21,7 +21,6 @@ use brdgme_game::command::Spec as CommandSpec;
 use brdgme_markup::Node as N;
 
 use std::collections::HashMap;
-use std::iter::FromIterator;
 
 use corp::Corp;
 use board::{Board, Loc, Tile};
@@ -68,7 +67,7 @@ impl Default for Phase {
 pub struct PubState {
     pub phase: Phase,
     pub priv_state: Option<PrivState>,
-    pub players: HashMap<usize, PubPlayer>,
+    pub players: Vec<PubPlayer>,
     pub board: Board,
     pub shares: HashMap<Corp, usize>,
     pub remaining_tiles: usize,
@@ -84,7 +83,7 @@ pub struct PrivState {
 #[derive(Default, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct Game {
     pub phase: Phase,
-    pub players: HashMap<usize, Player>,
+    pub players: Vec<Player>,
     pub board: Board,
     pub draw_tiles: Vec<Loc>,
     pub shares: HashMap<Corp, usize>,
@@ -145,15 +144,12 @@ impl Gamer for Game {
 
     fn pub_state(&self, player: Option<usize>) -> Self::PubState {
         PubState {
-            priv_state: player.map(|ref p| {
-                PrivState {
-                    id: *p,
-                    tiles: self.players
-                        .get(p)
-                        .map(|ps| ps.tiles.to_owned())
-                        .unwrap_or_else(|| vec![]),
-                }
-            }),
+            priv_state: player.map(|p| {
+                                       PrivState {
+                                           id: p,
+                                           tiles: self.players[p].tiles.to_owned(),
+                                       }
+                                   }),
             ..self.to_owned().into()
         }
     }
@@ -171,22 +167,23 @@ impl Gamer for Game {
                                         })?;
         let output = parser.parse(input, players)?;
         match output.value {
-            Command::Play(loc) => self.play(player, &loc),
-            Command::Found(corp) => self.found(player, &corp),
-            Command::Buy(n, corp) => self.buy(player, n, corp).map(|l| (l, false)),
-            Command::Done => self.done(player).map(|l| (l, false)),
-            Command::Merge(corp, into) => self.merge(player, corp, into).map(|l| (l, false)),
-            Command::Sell(n) => self.sell(player, n).map(|l| (l, false)),
-            Command::Trade(n) => self.trade(player, n).map(|l| (l, false)),
-            Command::Keep => self.keep(player).map(|l| (l, false)),
-            Command::End => self.end(player).map(|l| (l, false)),
-        }.map(|(logs, can_undo)| {
-                  CommandResponse {
-                      logs,
-                      can_undo,
-                      remaining_input: output.remaining.to_string(),
-                  }
-              })
+                Command::Play(loc) => self.play(player, &loc),
+                Command::Found(corp) => self.found(player, &corp),
+                Command::Buy(n, corp) => self.buy(player, n, corp),
+                Command::Done => self.done(player).map(|l| (l, false)),
+                Command::Merge(corp, into) => self.merge(player, corp, into).map(|l| (l, false)),
+                Command::Sell(n) => self.sell(player, n).map(|l| (l, false)),
+                Command::Trade(n) => self.trade(player, n).map(|l| (l, false)),
+                Command::Keep => self.keep(player).map(|l| (l, false)),
+                Command::End => self.end(player).map(|l| (l, false)),
+            }
+            .map(|(logs, can_undo)| {
+                     CommandResponse {
+                         logs,
+                         can_undo,
+                         remaining_input: output.remaining.to_string(),
+                     }
+                 })
     }
 
     fn player_count(&self) -> usize {
@@ -217,15 +214,14 @@ impl Game {
     }
 
     fn draw_replacement_tiles(&mut self, player: usize) -> (Vec<Log>, bool) {
-        let p = self.players
-            .get_mut(&player)
-            .expect(&format!("could not find player state for {}", player));
-        let remaining = TILE_HAND_SIZE - p.tiles.len();
+        let remaining = TILE_HAND_SIZE - self.players[player].tiles.len();
         if self.draw_tiles.len() < remaining {
             // End of game
             return (vec![], false);
         }
-        p.tiles.extend(self.draw_tiles.drain(0..remaining));
+        self.players[player]
+            .tiles
+            .extend(self.draw_tiles.drain(0..remaining));
         (vec![], true)
     }
 
@@ -236,12 +232,7 @@ impl Game {
             return Err(ErrorKind::InvalidInput("You can't play a tile right now".to_string())
                            .into());
         }
-        let pos = match self.players
-                  .get(&player)
-                  .expect(&format!("could not find player state for {}", player))
-                  .tiles
-                  .iter()
-                  .position(|l| l == loc) {
+        let pos = match self.players[player].tiles.iter().position(|l| l == loc) {
             Some(p) => p,
             None => bail!(ErrorKind::InvalidInput("You don't have that tile".to_string())),
         };
@@ -283,11 +274,7 @@ impl Game {
                 self.choose_merger_phase(*loc);
             }
         }
-        self.players
-            .get_mut(&player)
-            .expect(&format!("could not find player state for {}", player))
-            .tiles
-            .swap_remove(pos);
+        self.players[player].tiles.swap_remove(pos);
         Ok((vec![], true))
     }
 
@@ -330,10 +317,59 @@ impl Game {
         Ok((vec![], true))
     }
 
-    pub fn buy(&mut self, player: usize, _n: usize, _corp: Corp) -> Result<Vec<Log>> {
+    pub fn buy(&mut self, player: usize, n: usize, corp: Corp) -> Result<(Vec<Log>, bool)> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
-        panic!("Not implemented");
+        if n == 0 {
+            bail!(ErrorKind::InvalidInput("can't buy 0 shares".to_string()));
+        }
+        match self.phase {
+            Phase::Buy { remaining, .. } => {
+                if n > remaining {
+                    bail!(ErrorKind::InvalidInput(format!("can only buy {} more", remaining)));
+                }
+                let corp_size = self.board.corp_size(&corp);
+                if corp_size == 0 {
+                    bail!(ErrorKind::InvalidInput(format!("{} is not on the board", corp)));
+                }
+                let corp_shares = self.shares.get(&corp).cloned().unwrap_or(0);
+                if n > corp_shares {
+                    bail!(ErrorKind::InvalidInput(format!("{} has {} left", corp, corp_shares)));
+                }
+                let price = corp.value(corp_size) * n;
+                let player_money = self.players[player].money;
+                if price > player_money {
+                    bail!(ErrorKind::InvalidInput(format!("costs ${}, you only have ${}",
+                                                          price,
+                                                          player_money)));
+                }
+                self.players[player].money -= price;
+                {
+                    let player_shares = self.players[player].shares.entry(corp).or_insert(0);
+                    *player_shares += n;
+                    let corp_shares = self.shares.entry(corp).or_insert(STARTING_SHARES);
+                    *corp_shares -= n;
+                }
+                let new_remaining = remaining - n;
+                let mut logs: Vec<Log> = vec![Log::public(vec![N::Player(player),
+                                          N::text(" bought "),
+                                          N::Bold(vec![N::text(format!("{} ", n))]),
+                                          corp.render(),
+                                          N::text(" for "),
+                                          N::Bold(vec![N::text(format!("${}", price))])])];
+
+                if new_remaining == 0 {
+                    logs.extend(self.end_turn());
+                    return Ok((logs, false));
+                }
+                self.phase = Phase::Buy {
+                    player,
+                    remaining: new_remaining,
+                };
+                Ok((logs, true))
+            }
+            _ => bail!(ErrorKind::InvalidInput("can't buy shares at the moment".to_string())),
+        }
     }
 
     pub fn done(&mut self, player: usize) -> Result<Vec<Log>> {
@@ -409,9 +445,7 @@ impl Into<PubState> for Game {
         PubState {
             phase: self.phase,
             priv_state: None,
-            players: HashMap::from_iter(self.players
-                                            .iter()
-                                            .map(|(k, v)| (*k, v.to_owned().into()))),
+            players: self.players.iter().map(|v| v.to_owned().into()).collect(),
             board: self.board,
             shares: self.shares,
             remaining_tiles: self.draw_tiles.len(),
