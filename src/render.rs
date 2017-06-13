@@ -58,7 +58,7 @@ impl Renderer for PubState {
 static CORP_TABLE_HEADER: &'static [&'static str] =
     &["Corporation", "Size", "Value", "Shares", "Major", "Minor"];
 
-const ROW_PAD: &'static str = "  ";
+const ROW_PAD: &'static str = "   ";
 
 impl PubState {
     fn corp_table(&self) -> N {
@@ -70,23 +70,53 @@ impl PubState {
                          ROW_PAD)];
         rows.extend(Corp::iter()
                         .map(|c| {
-                                 let size = self.board.corp_size(c);
-                                 let value = c.value(size);
-                                 row_pad(&vec![(A::Left, vec![c.render()]),
-                                               (A::Left, vec![N::text(format!("{}", size))]),
-                                               (A::Left, vec![N::text(format!("${}", value))]),
-                                               (A::Left, vec![N::text(format!("{}", self.shares.get(c).expect("expected corp to have shares")))]),
-                                               (A::Left, vec![N::text(format!("${}", value * MINOR_MULT))]),
-                                               (A::Left, vec![N::text(format!("${}", value * MAJOR_MULT))]),
-                                               ],
-                                         ROW_PAD)
-                             })
+            let size = self.board.corp_size(c);
+            let value = c.value(size);
+            row_pad(&vec![(A::Left, vec![c.render()]),
+                          (A::Left, vec![N::text(format!("{}", size))]),
+                          (A::Left, vec![N::text(format!("${}", value))]),
+                          (A::Left,
+                           vec![N::text(format!("{} left",
+                                     self.shares.get(c).expect("expected corp to have shares")))]),
+                          (A::Left, vec![N::text(format!("${}", value * MINOR_MULT))]),
+                          (A::Left, vec![N::text(format!("${}", value * MAJOR_MULT))])],
+                    ROW_PAD)
+        })
                         .collect::<Vec<Row>>());
         N::Table(rows)
     }
 
     fn player_table(&self) -> N {
-        N::text("plauer table")
+        let mut rows: Vec<Row> = vec![self.player_header()];
+        for p in 0..self.players.len() {
+            rows.push(self.player_row(p));
+        }
+        N::Table(rows)
+    }
+
+    fn player_header(&self) -> Row {
+        let mut header_row: Row = vec![(A::Left, vec![N::Bold(vec![N::text("Player")])]),
+                                       (A::Left, vec![N::Bold(vec![N::text("Cash")])])];
+        for c in Corp::iter() {
+            header_row.push((A::Left, vec![c.render_abbrev()]));
+        }
+        row_pad(&header_row, ROW_PAD)
+    }
+
+    fn player_row(&self, player: usize) -> Row {
+        let mut player_row: Row = vec![(A::Left, vec![N::Player(player)]),
+                                       (A::Left,
+                                        vec![N::text(format!("${}", self.players[player].money))])];
+        for c in Corp::iter() {
+            player_row.push((A::Left,
+                             vec![N::text(format!("{}",
+                                                  self.players[player]
+                                                      .shares
+                                                      .get(c)
+                                                      .cloned()
+                                                      .unwrap_or(0)))]));
+        }
+        row_pad(&player_row, ROW_PAD)
     }
 }
 
@@ -219,8 +249,7 @@ impl Board {
 
 impl Corp {
     pub fn render_in_color(self, content: Vec<N>) -> N {
-        N::Bg(self.color().into(),
-              vec![N::Fg(self.color().mono().inv().into(), vec![N::Bold(content)])])
+        N::Fg(self.color().into(), vec![N::Bold(content)])
     }
 
     pub fn render_name(self) -> N {
