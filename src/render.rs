@@ -1,5 +1,5 @@
 use brdgme_game::Renderer;
-use brdgme_markup::{Node as N, Align as A};
+use brdgme_markup::{Node as N, Align as A, Row, row_pad};
 use brdgme_color::*;
 
 use super::PubState;
@@ -47,7 +47,42 @@ impl Renderer for PubState {
             .priv_state
             .map(|ps| ps.tiles)
             .unwrap_or_else(|| vec![]);
-        vec![N::Table(vec![vec![(A::Center, vec![self.board.render(&tiles)])]])]
+        vec![N::Table(vec![vec![(A::Center, vec![self.board.render(&tiles)])],
+                           vec![],
+                           vec![(A::Center, vec![self.corp_table()])],
+                           vec![],
+                           vec![(A::Center, vec![self.player_table()])]])]
+    }
+}
+
+static CORP_TABLE_HEADER: &'static [&'static str] =
+    &["Corporation", "Size", "Value", "Shares", "Major", "Minor"];
+
+const ROW_PAD: &'static str = "  ";
+
+impl PubState {
+    fn corp_table(&self) -> N {
+        let mut rows: Vec<Row> =
+            vec![row_pad(&CORP_TABLE_HEADER
+                              .iter()
+                              .map(|h| (A::Left, vec![N::Bold(vec![N::text(*h)])]))
+                              .collect(),
+                         ROW_PAD)];
+        rows.extend(Corp::iter()
+                        .map(|c| {
+                                 let size = self.board.corp_size(c);
+                                 let value = c.value(size);
+                                 row_pad(&vec![(A::Left, vec![c.render()]),
+                                               (A::Left, vec![N::text(format!("{}", size))]),
+                                               (A::Left, vec![N::text(format!("${}", value))])],
+                                         ROW_PAD)
+                             })
+                        .collect::<Vec<Row>>());
+        N::Table(rows)
+    }
+
+    fn player_table(&self) -> N {
+        N::text("plauer table")
     }
 }
 
