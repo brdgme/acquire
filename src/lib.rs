@@ -236,12 +236,21 @@ impl Game {
             Some(p) => p,
             None => bail!(ErrorKind::InvalidInput("You don't have that tile".to_string())),
         };
+        let mut logs: Vec<Log> = vec![Log::public(vec![N::Player(player),
+                                                       N::text(" played "),
+                                                       N::Bold(vec![N::text(format!("{}",
+                                                                                    loc))])])];
         let neighbouring_corps = self.board.neighbouring_corps(loc);
         match neighbouring_corps.len() {
             1 => {
-                self.board
-                    .extend_corp(loc, neighbouring_corps.iter().next().unwrap());
-                self.buy_phase();
+                let n_corp = neighbouring_corps.iter().next().unwrap();
+                self.board.extend_corp(loc, n_corp);
+                logs.push(Log::public(vec![
+                    n_corp.render(),
+                    N::text(" increased in size to "),
+                    N::Bold(vec![N::text(format!("{}", self.board.corp_size(n_corp)))]),
+                ]));
+                self.buy_phase(player);
             }
             0 => {
                 if loc.neighbours()
@@ -252,9 +261,9 @@ impl Game {
                             "there aren't any corporations available to found".to_string(),
                         ));
                     }
-                    self.found_phase(loc.to_owned());
+                    self.found_phase(player, loc.to_owned());
                 } else {
-                    self.buy_phase();
+                    self.buy_phase(player);
                 }
                 // Set the tile last as errors can be thrown above.
                 self.board.set_tile(loc, Tile::Unincorporated);
@@ -271,30 +280,35 @@ impl Game {
                                                       .to_string()));
                 }
                 self.board.set_tile(loc, Tile::Unincorporated);
-                self.choose_merger_phase(*loc);
+                self.choose_merger_phase(player, *loc);
             }
         }
         self.players[player].tiles.swap_remove(pos);
-        Ok((vec![], true))
+        Ok((logs, true))
     }
 
-    fn buy_phase(&mut self) {
+    fn buy_phase(&mut self, player: usize) {
         self.phase = Phase::Buy {
-            player: self.phase.whose_turn(),
+            player: player,
             remaining: 3,
         };
     }
 
-    fn found_phase(&mut self, loc: Loc) {
+    fn found_phase(&mut self, player: usize, loc: Loc) {
         self.phase = Phase::Found {
-            player: self.phase.whose_turn(),
+            player: player,
             at: loc,
         }
     }
 
-    fn choose_merger_phase(&mut self, loc: Loc) {
+    fn choose_merger_phase(&mut self, player: usize, loc: Loc) {
+        let n_corps = self.board.neighbouring_corps(&loc);
+        if n_corps.len() <= 1 {
+            self.buy_phase(player);
+            return;
+        }
         self.phase = Phase::ChooseMerger {
-            player: self.phase.whose_turn(),
+            player: player,
             at: loc,
         }
     }
@@ -313,8 +327,20 @@ impl Game {
             bail!(ErrorKind::InvalidInput(format!("{} is already on the board", corp)));
         }
         self.board.extend_corp(&at, corp);
-        self.buy_phase();
-        Ok((vec![], true))
+        {
+            let corp_shares = self.shares.entry(*corp).or_insert(STARTING_SHARES);
+            if *corp_shares > 0 {
+                let player_shares = self.players[player].shares.entry(*corp).or_insert(0);
+                *player_shares += 1;
+                *corp_shares -= 1;
+            }
+        }
+        self.buy_phase(player);
+        Ok((vec![Log::public(vec![N::Player(player), N::text(" founded "), corp.render()])],
+            match self.phase {
+                Phase::Buy { .. } => true,
+                _ => false,
+            }))
     }
 
     pub fn buy(&mut self, player: usize, n: usize, corp: Corp) -> Result<(Vec<Log>, bool)> {

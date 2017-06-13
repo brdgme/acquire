@@ -6,6 +6,8 @@ use std::fmt;
 
 pub const SAFE_SIZE: usize = 11;
 pub const GAME_END_SIZE: usize = 41;
+pub const MINOR_MULT: usize = 5;
+pub const MAJOR_MULT: usize = 10;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Corp {
@@ -79,6 +81,14 @@ impl Corp {
 
     pub fn render(&self) -> N {
         N::Bold(vec![N::Fg(self.color().into(), vec![N::text(format!("{}", self))])])
+    }
+
+    pub fn minor_bonus(&self, size: usize) -> usize {
+        self.value(size) * MINOR_MULT
+    }
+
+    pub fn major_bonus(&self, size: usize) -> usize {
+        self.value(size) * MAJOR_MULT
     }
 }
 

@@ -4,7 +4,7 @@ use brdgme_color::*;
 
 use super::PubState;
 use board::{self, Board, Loc, Tile};
-use corp::Corp;
+use corp::{Corp, MINOR_MULT, MAJOR_MULT};
 
 use std::iter::repeat;
 
@@ -74,7 +74,11 @@ impl PubState {
                                  let value = c.value(size);
                                  row_pad(&vec![(A::Left, vec![c.render()]),
                                                (A::Left, vec![N::text(format!("{}", size))]),
-                                               (A::Left, vec![N::text(format!("${}", value))])],
+                                               (A::Left, vec![N::text(format!("${}", value))]),
+                                               (A::Left, vec![N::text(format!("{}", self.shares.get(c).expect("expected corp to have shares")))]),
+                                               (A::Left, vec![N::text(format!("${}", value * MINOR_MULT))]),
+                                               (A::Left, vec![N::text(format!("${}", value * MAJOR_MULT))]),
+                                               ],
                                          ROW_PAD)
                              })
                         .collect::<Vec<Row>>());
