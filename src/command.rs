@@ -43,9 +43,9 @@ impl Game {
                 }
                 Phase::ChooseMerger { at, .. } => {
                     parsers.push(Box::new(self.merge_parser(&self.board
-                                                                 .neighbouring_corps(&at)
-                                                                 .into_iter()
-                                                                 .collect::<Vec<Corp>>())));
+                                                                .neighbouring_corps(&at)
+                                                                .into_iter()
+                                                                .collect::<Vec<Corp>>())));
                 }
                 Phase::SellOrTrade { player, corp, .. } => {
                     parsers.push(Box::new(self.sell_parser(player, corp)));

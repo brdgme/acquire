@@ -167,23 +167,22 @@ impl Gamer for Game {
                                         })?;
         let output = parser.parse(input, players)?;
         match output.value {
-                Command::Play(loc) => self.play(player, &loc),
-                Command::Found(corp) => self.found(player, &corp),
-                Command::Buy(n, corp) => self.buy(player, n, corp),
-                Command::Done => self.done(player).map(|l| (l, false)),
-                Command::Merge(corp, into) => self.merge(player, corp, into).map(|l| (l, false)),
-                Command::Sell(n) => self.sell(player, n).map(|l| (l, false)),
-                Command::Trade(n) => self.trade(player, n).map(|l| (l, false)),
-                Command::Keep => self.keep(player).map(|l| (l, false)),
-                Command::End => self.end(player).map(|l| (l, false)),
-            }
-            .map(|(logs, can_undo)| {
-                     CommandResponse {
-                         logs,
-                         can_undo,
-                         remaining_input: output.remaining.to_string(),
-                     }
-                 })
+            Command::Play(loc) => self.play(player, &loc),
+            Command::Found(corp) => self.found(player, &corp),
+            Command::Buy(n, corp) => self.buy(player, n, corp),
+            Command::Done => self.done(player).map(|l| (l, false)),
+            Command::Merge(corp, into) => self.merge(player, corp, into).map(|l| (l, false)),
+            Command::Sell(n) => self.sell(player, n).map(|l| (l, false)),
+            Command::Trade(n) => self.trade(player, n).map(|l| (l, false)),
+            Command::Keep => self.keep(player).map(|l| (l, false)),
+            Command::End => self.end(player).map(|l| (l, false)),
+        }.map(|(logs, can_undo)| {
+                  CommandResponse {
+                      logs,
+                      can_undo,
+                      remaining_input: output.remaining.to_string(),
+                  }
+              })
     }
 
     fn player_count(&self) -> usize {
@@ -245,11 +244,11 @@ impl Game {
             1 => {
                 let n_corp = neighbouring_corps.iter().next().unwrap();
                 self.board.extend_corp(loc, n_corp);
-                logs.push(Log::public(vec![
-                    n_corp.render(),
-                    N::text(" increased in size to "),
-                    N::Bold(vec![N::text(format!("{}", self.board.corp_size(n_corp)))]),
-                ]));
+                logs.push(Log::public(vec![n_corp.render(),
+                     N::text(" increased in size to "),
+                     N::Bold(vec![N::text(
+                    format!("{}", self.board.corp_size(n_corp))
+                )])]));
                 self.buy_phase(player);
             }
             0 => {
@@ -378,11 +377,11 @@ impl Game {
                 }
                 let new_remaining = remaining - n;
                 let mut logs: Vec<Log> = vec![Log::public(vec![N::Player(player),
-                                          N::text(" bought "),
-                                          N::Bold(vec![N::text(format!("{} ", n))]),
-                                          corp.render(),
-                                          N::text(" for "),
-                                          N::Bold(vec![N::text(format!("${}", price))])])];
+                     N::text(" bought "),
+                     N::Bold(vec![N::text(format!("{} ", n))]),
+                     corp.render(),
+                     N::text(" for "),
+                     N::Bold(vec![N::text(format!("${}", price))])])];
 
                 if new_remaining == 0 {
                     logs.extend(self.end_turn());

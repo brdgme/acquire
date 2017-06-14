@@ -43,15 +43,15 @@ static AVAILABLE_LOC_BG: Color = Color {
 
 impl Renderer for PubState {
     fn render(&self) -> Vec<N> {
-        let tiles = self.clone()
+        let (tiles, player) = self.clone()
             .priv_state
-            .map(|ps| ps.tiles)
-            .unwrap_or_else(|| vec![]);
+            .map(|ps| (ps.tiles, Some(ps.id)))
+            .unwrap_or_else(|| (vec![], None));
         vec![N::Table(vec![vec![(A::Center, vec![self.board.render(&tiles)])],
                            vec![],
                            vec![(A::Center, vec![self.corp_table()])],
                            vec![],
-                           vec![(A::Center, vec![self.player_table()])]])]
+                           vec![(A::Center, vec![self.player_table(player)])]])]
     }
 }
 
@@ -64,31 +64,41 @@ impl PubState {
     fn corp_table(&self) -> N {
         let mut rows: Vec<Row> =
             vec![row_pad(&CORP_TABLE_HEADER
-                              .iter()
-                              .map(|h| (A::Left, vec![N::Bold(vec![N::text(*h)])]))
-                              .collect(),
+                             .iter()
+                             .map(|h| (A::Left, vec![N::Bold(vec![N::text(*h)])]))
+                             .collect(),
                          ROW_PAD)];
-        rows.extend(Corp::iter()
-                        .map(|c| {
-            let size = self.board.corp_size(c);
-            let value = c.value(size);
-            row_pad(&vec![(A::Left, vec![c.render()]),
-                          (A::Left, vec![N::text(format!("{}", size))]),
-                          (A::Left, vec![N::text(format!("${}", value))]),
-                          (A::Left,
-                           vec![N::text(format!("{} left",
-                                     self.shares.get(c).expect("expected corp to have shares")))]),
-                          (A::Left, vec![N::text(format!("${}", value * MINOR_MULT))]),
-                          (A::Left, vec![N::text(format!("${}", value * MAJOR_MULT))])],
-                    ROW_PAD)
-        })
-                        .collect::<Vec<Row>>());
+        rows.extend(
+            Corp::iter()
+                .map(|c| {
+                    let size = self.board.corp_size(c);
+                    let value = c.value(size);
+                    row_pad(
+                        &vec![(A::Left, vec![c.render()]),
+                              (A::Left, vec![N::text(format!("{}", size))]),
+                              (A::Left, vec![N::text(format!("${}", value))]),
+                              (A::Left,
+                               vec![N::text(format!(
+                            "{} left",
+                            self.shares.get(c).expect("expected corp to have shares")
+                        ))]),
+                              (A::Left, vec![N::text(format!("${}", value * MINOR_MULT))]),
+                              (A::Left, vec![N::text(format!("${}", value * MAJOR_MULT))])],
+                        ROW_PAD,
+                    )
+                })
+                .collect::<Vec<Row>>(),
+        );
         N::Table(rows)
     }
 
-    fn player_table(&self) -> N {
+    fn player_table(&self, player: Option<usize>) -> N {
         let mut rows: Vec<Row> = vec![self.player_header()];
-        for p in 0..self.players.len() {
+        let num_players = self.players.len();
+        for p_offset in 0..num_players {
+            let p = player
+                .map(|p| (p + p_offset) % num_players)
+                .unwrap_or(p_offset);
             rows.push(self.player_row(p));
         }
         N::Table(rows)
@@ -195,54 +205,58 @@ impl Board {
                                                                vec![N::text(l.name())])])])]));
         }
         // Corp text.
-        layers.extend(Corp::iter()
-                          .flat_map(|c| {
-            let mut c_text = vec![];
-            // Find the widest lines.
-            // `widths` is a tuple of x, y, width.
-            let widths: Vec<(usize, usize, usize)> = board::rows()
-                .flat_map(|row| {
-                    let mut start: Option<usize> = None;
-                    board::cols()
-                        .filter_map(|col| {
-                            let l = Loc { row: row, col: col };
-                            match self.get_tile(&l) {
-                                Tile::Corp(tc) if tc == *c => {
-                                    if start.is_none() {
-                                        start = Some(col);
+        layers.extend(
+            Corp::iter()
+                .flat_map(|c| {
+                    let mut c_text = vec![];
+                    // Find the widest lines.
+                    // `widths` is a tuple of x, y, width.
+                    let widths: Vec<(usize, usize, usize)> = board::rows()
+                        .flat_map(|row| {
+                            let mut start: Option<usize> = None;
+                            board::cols()
+                                .filter_map(|col| {
+                                    let l = Loc { row: row, col: col };
+                                    match self.get_tile(&l) {
+                                        Tile::Corp(tc) if tc == *c => {
+                                            if start.is_none() {
+                                                start = Some(col);
+                                            }
+                                            if col == board::WIDTH - 1 {
+                                                Some((start.unwrap(),
+                                                      row,
+                                                      col - start.unwrap() + 1))
+                                            } else {
+                                                None
+                                            }
+                                        }
+                                        _ => {
+                                            if let Some(s) = start {
+                                                start = None;
+                                                Some((s, row, col - s))
+                                            } else {
+                                                None
+                                            }
+                                        }
                                     }
-                                    if col == board::WIDTH - 1 {
-                                        Some((start.unwrap(), row, col - start.unwrap() + 1))
-                                    } else {
-                                        None
-                                    }
-                                }
-                                _ => {
-                                    if let Some(s) = start {
-                                        start = None;
-                                        Some((s, row, col - s))
-                                    } else {
-                                        None
-                                    }
-                                }
-                            }
+                                })
+                                .collect::<Vec<(usize, usize, usize)>>()
                         })
-                        .collect::<Vec<(usize, usize, usize)>>()
+                        .collect();
+                    if !widths.is_empty() {
+                        let (x, y, w) = widths[(widths.len() - 1) / 2];
+                        c_text.push(((x + (w - 1) / 2) * TILE_WIDTH,
+                                     y * TILE_HEIGHT,
+                                     if w > 1 {
+                                         corp_main_text_wide(c, self.corp_size(c))
+                                     } else {
+                                         corp_main_text_thin(c, self.corp_size(c))
+                                     }));
+                    }
+                    c_text
                 })
-                .collect();
-            if !widths.is_empty() {
-                let (x, y, w) = widths[(widths.len() - 1) / 2];
-                c_text.push(((x + (w - 1) / 2) * TILE_WIDTH,
-                             y * TILE_HEIGHT,
-                             if w > 1 {
-                                 corp_main_text_wide(c, self.corp_size(c))
-                             } else {
-                                 corp_main_text_thin(c, self.corp_size(c))
-                             }));
-            }
-            c_text
-        })
-                          .collect::<Vec<(usize, usize, Vec<N>)>>());
+                .collect::<Vec<(usize, usize, Vec<N>)>>(),
+        );
         N::Canvas(layers)
     }
 }
