@@ -420,31 +420,31 @@ impl Game {
     pub fn merge(&mut self, player: usize, _corp: Corp, _into: Corp) -> Result<Vec<Log>> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
-        panic!("Not implemented");
+        unimplemented!();
     }
 
     pub fn sell(&mut self, player: usize, _n: usize) -> Result<Vec<Log>> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
-        panic!("Not implemented");
+        unimplemented!();
     }
 
     pub fn trade(&mut self, player: usize, _n: usize) -> Result<Vec<Log>> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
-        panic!("Not implemented");
+        unimplemented!();
     }
 
     pub fn keep(&mut self, player: usize) -> Result<Vec<Log>> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
-        panic!("Not implemented");
+        unimplemented!();
     }
 
     pub fn end(&mut self, player: usize) -> Result<Vec<Log>> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
-        panic!("Not implemented");
+        unimplemented!();
     }
 }
 
