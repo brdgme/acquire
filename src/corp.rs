@@ -20,13 +20,15 @@ pub enum Corp {
     Tower,
 }
 
-pub static CORPS: [Corp; 7] = [Corp::Worldwide,
-                               Corp::Sackson,
-                               Corp::Festival,
-                               Corp::Imperial,
-                               Corp::American,
-                               Corp::Continental,
-                               Corp::Tower];
+pub static CORPS: [Corp; 7] = [
+    Corp::Worldwide,
+    Corp::Sackson,
+    Corp::Festival,
+    Corp::Imperial,
+    Corp::American,
+    Corp::Continental,
+    Corp::Tower,
+];
 
 fn additional_value(size: usize) -> usize {
     match size {
@@ -80,7 +82,12 @@ impl Corp {
     }
 
     pub fn render(&self) -> N {
-        N::Bold(vec![N::Fg(self.color().into(), vec![N::text(format!("{}", self))])])
+        N::Bold(vec![
+            N::Fg(
+                self.color().into(),
+                vec![N::text(format!("{}", self))]
+            ),
+        ])
     }
 
     pub fn minor_bonus(&self, size: usize) -> usize {

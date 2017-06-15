@@ -47,11 +47,15 @@ impl Renderer for PubState {
             .priv_state
             .map(|ps| (ps.tiles, Some(ps.id)))
             .unwrap_or_else(|| (vec![], None));
-        vec![N::Table(vec![vec![(A::Center, vec![self.board.render(&tiles)])],
-                           vec![],
-                           vec![(A::Center, vec![self.corp_table()])],
-                           vec![],
-                           vec![(A::Center, vec![self.player_table(player)])]])]
+        vec![
+            N::Table(vec![
+                vec![(A::Center, vec![self.board.render(&tiles)])],
+                vec![],
+                vec![(A::Center, vec![self.corp_table()])],
+                vec![],
+                vec![(A::Center, vec![self.player_table(player)])],
+            ]),
+        ]
     }
 }
 
@@ -62,28 +66,37 @@ const ROW_PAD: &'static str = "   ";
 
 impl PubState {
     fn corp_table(&self) -> N {
-        let mut rows: Vec<Row> =
-            vec![row_pad(&CORP_TABLE_HEADER
-                             .iter()
-                             .map(|h| (A::Left, vec![N::Bold(vec![N::text(*h)])]))
-                             .collect(),
-                         ROW_PAD)];
+        let mut rows: Vec<Row> = vec![
+            row_pad(
+                &CORP_TABLE_HEADER
+                    .iter()
+                    .map(|h| (A::Left, vec![N::Bold(vec![N::text(*h)])]))
+                    .collect(),
+                ROW_PAD
+            ),
+        ];
         rows.extend(
             Corp::iter()
                 .map(|c| {
                     let size = self.board.corp_size(c);
                     let value = c.value(size);
                     row_pad(
-                        &vec![(A::Left, vec![c.render()]),
-                              (A::Left, vec![N::text(format!("{}", size))]),
-                              (A::Left, vec![N::text(format!("${}", value))]),
-                              (A::Left,
-                               vec![N::text(format!(
-                            "{} left",
-                            self.shares.get(c).expect("expected corp to have shares")
-                        ))]),
-                              (A::Left, vec![N::text(format!("${}", value * MINOR_MULT))]),
-                              (A::Left, vec![N::text(format!("${}", value * MAJOR_MULT))])],
+                        &vec![
+                            (A::Left, vec![c.render()]),
+                            (A::Left, vec![N::text(format!("{}", size))]),
+                            (A::Left, vec![N::text(format!("${}", value))]),
+                            (
+                                A::Left,
+                                vec![
+                                    N::text(format!(
+                                        "{} left",
+                                        self.shares.get(c).expect("expected corp to have shares")
+                                    )),
+                                ]
+                            ),
+                            (A::Left, vec![N::text(format!("${}", value * MINOR_MULT))]),
+                            (A::Left, vec![N::text(format!("${}", value * MAJOR_MULT))]),
+                        ],
                         ROW_PAD,
                     )
                 })
@@ -96,17 +109,19 @@ impl PubState {
         let mut rows: Vec<Row> = vec![self.player_header()];
         let num_players = self.players.len();
         for p_offset in 0..num_players {
-            let p = player
-                .map(|p| (p + p_offset) % num_players)
-                .unwrap_or(p_offset);
+            let p = player.map(|p| (p + p_offset) % num_players).unwrap_or(
+                p_offset,
+            );
             rows.push(self.player_row(p));
         }
         N::Table(rows)
     }
 
     fn player_header(&self) -> Row {
-        let mut header_row: Row = vec![(A::Left, vec![N::Bold(vec![N::text("Player")])]),
-                                       (A::Left, vec![N::Bold(vec![N::text("Cash")])])];
+        let mut header_row: Row = vec![
+            (A::Left, vec![N::Bold(vec![N::text("Player")])]),
+            (A::Left, vec![N::Bold(vec![N::text("Cash")])]),
+        ];
         for c in Corp::iter() {
             header_row.push((A::Left, vec![c.render_abbrev()]));
         }
@@ -114,28 +129,40 @@ impl PubState {
     }
 
     fn player_row(&self, player: usize) -> Row {
-        let mut player_row: Row = vec![(A::Left, vec![N::Player(player)]),
-                                       (A::Left,
-                                        vec![N::text(format!("${}", self.players[player].money))])];
+        let mut player_row: Row = vec![
+            (A::Left, vec![N::Player(player)]),
+            (
+                A::Left,
+                vec![N::text(format!("${}", self.players[player].money))]
+            ),
+        ];
         for c in Corp::iter() {
-            player_row.push((A::Left,
-                             vec![N::text(format!("{}",
-                                                  self.players[player]
-                                                      .shares
-                                                      .get(c)
-                                                      .cloned()
-                                                      .unwrap_or(0)))]));
+            player_row.push((
+                A::Left,
+                vec![
+                    N::text(format!(
+                        "{}",
+                        self.players[player].shares.get(c).cloned().unwrap_or(0)
+                    )),
+                ],
+            ));
         }
         row_pad(&player_row, ROW_PAD)
     }
 }
 
 fn tile_background(c: Color) -> N {
-    N::Bg(c.into(),
-          vec![N::text(repeat(repeat(" ").take(TILE_WIDTH).collect::<String>())
-                           .take(TILE_HEIGHT)
-                           .collect::<Vec<String>>()
-                           .join("\n"))])
+    N::Bg(
+        c.into(),
+        vec![
+            N::text(
+                repeat(repeat(" ").take(TILE_WIDTH).collect::<String>())
+                    .take(TILE_HEIGHT)
+                    .collect::<Vec<String>>()
+                    .join("\n")
+            ),
+        ],
+    )
 }
 
 fn empty_color(l: Loc) -> Color {
@@ -147,19 +174,35 @@ fn empty_color(l: Loc) -> Color {
 }
 
 fn corp_main_text_thin(c: &Corp, size: usize) -> Vec<N> {
-    vec![N::Fg(c.color().inv().mono().into(),
-               vec![N::Align(A::Center,
-                             TILE_WIDTH,
-                             vec![N::text(format!("{}\n${}", c.abbrev(), c.value(size)))])])]
+    vec![
+        N::Fg(
+            c.color().inv().mono().into(),
+            vec![
+                N::Align(
+                    A::Center,
+                    TILE_WIDTH,
+                    vec![N::text(format!("{}\n${}", c.abbrev(), c.value(size)))]
+                ),
+            ]
+        ),
+    ]
 }
 
 fn corp_main_text_wide(c: &Corp, size: usize) -> Vec<N> {
     let mut c_name = c.name();
     c_name.truncate(TILE_WIDTH * 2 - 2);
-    vec![N::Fg(c.color().inv().mono().into(),
-               vec![N::Align(A::Center,
-                             TILE_WIDTH * 2,
-                             vec![N::text(format!("{}\n${}", c_name, c.value(size)))])])]
+    vec![
+        N::Fg(
+            c.color().inv().mono().into(),
+            vec![
+                N::Align(
+                    A::Center,
+                    TILE_WIDTH * 2,
+                    vec![N::text(format!("{}\n${}", c_name, c.value(size)))]
+                ),
+            ]
+        ),
+    ]
 }
 
 impl Board {
@@ -172,15 +215,29 @@ impl Board {
             match self.get_tile(&l) {
                 Tile::Empty => {
                     layers.push((render_x, render_y, vec![tile_background(empty_color(l))]));
-                    layers.push((render_x,
-                                 render_y,
-                                 vec![N::Align(A::Center,
-                                               TILE_WIDTH,
-                                               vec![N::Fg(UNAVAILABLE_LOC_TEXT_COLOR.into(),
-                                                          vec![N::text(l.name())])])]));
+                    layers.push((
+                        render_x,
+                        render_y,
+                        vec![
+                            N::Align(
+                                A::Center,
+                                TILE_WIDTH,
+                                vec![
+                                    N::Fg(
+                                        UNAVAILABLE_LOC_TEXT_COLOR.into(),
+                                        vec![N::text(l.name())]
+                                    ),
+                                ]
+                            ),
+                        ],
+                    ));
                 }
                 Tile::Unincorporated => {
-                    layers.push((render_x, render_y, vec![tile_background(UNINCORPORATED_COLOR)]));
+                    layers.push((
+                        render_x,
+                        render_y,
+                        vec![tile_background(UNINCORPORATED_COLOR)],
+                    ));
                 }
                 Tile::Corp(ref c) => {
                     layers.push((render_x, render_y, vec![tile_background(c.color())]));
@@ -193,16 +250,29 @@ impl Board {
             let l = Loc::from(*t);
             let render_x = l.col * TILE_WIDTH;
             let render_y = l.row * TILE_HEIGHT;
-            layers.push((render_x, render_y, vec![tile_background(AVAILABLE_LOC_BG)]));
-            layers.push((render_x,
-                         render_y,
-                         vec![N::Align(A::Center,
-                                       TILE_WIDTH,
-                                       vec![N::Bold(vec![N::Fg(AVAILABLE_LOC_BG
-                                                                   .inv()
-                                                                   .mono()
-                                                                   .into(),
-                                                               vec![N::text(l.name())])])])]));
+            layers.push((
+                render_x,
+                render_y,
+                vec![tile_background(AVAILABLE_LOC_BG)],
+            ));
+            layers.push((
+                render_x,
+                render_y,
+                vec![
+                    N::Align(
+                        A::Center,
+                        TILE_WIDTH,
+                        vec![
+                            N::Bold(vec![
+                                N::Fg(
+                                    AVAILABLE_LOC_BG.inv().mono().into(),
+                                    vec![N::text(l.name())]
+                                ),
+                            ]),
+                        ]
+                    ),
+                ],
+            ));
         }
         // Corp text.
         layers.extend(
@@ -223,9 +293,9 @@ impl Board {
                                                 start = Some(col);
                                             }
                                             if col == board::WIDTH - 1 {
-                                                Some((start.unwrap(),
-                                                      row,
-                                                      col - start.unwrap() + 1))
+                                                Some(
+                                                    (start.unwrap(), row, col - start.unwrap() + 1),
+                                                )
                                             } else {
                                                 None
                                             }
@@ -245,13 +315,15 @@ impl Board {
                         .collect();
                     if !widths.is_empty() {
                         let (x, y, w) = widths[(widths.len() - 1) / 2];
-                        c_text.push(((x + (w - 1) / 2) * TILE_WIDTH,
-                                     y * TILE_HEIGHT,
-                                     if w > 1 {
-                                         corp_main_text_wide(c, self.corp_size(c))
-                                     } else {
-                                         corp_main_text_thin(c, self.corp_size(c))
-                                     }));
+                        c_text.push((
+                            (x + (w - 1) / 2) * TILE_WIDTH,
+                            y * TILE_HEIGHT,
+                            if w > 1 {
+                                corp_main_text_wide(c, self.corp_size(c))
+                            } else {
+                                corp_main_text_thin(c, self.corp_size(c))
+                            },
+                        ));
                     }
                     c_text
                 })

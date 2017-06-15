@@ -35,8 +35,9 @@ impl Board {
         let len = self.0.len();
         let at_u = at.into();
         if len <= at_u {
-            self.0
-                .extend(iter::repeat(Tile::default()).take(at_u - len + 1))
+            self.0.extend(
+                iter::repeat(Tile::default()).take(at_u - len + 1),
+            )
         }
         self.0[at_u] = t;
     }
@@ -45,9 +46,9 @@ impl Board {
         self.0
             .iter()
             .filter(|t| match **t {
-                        Tile::Corp(tc) if tc == *c => true,
-                        _ => false,
-                    })
+                Tile::Corp(tc) if tc == *c => true,
+                _ => false,
+            })
             .count()
     }
 
@@ -116,27 +117,27 @@ impl Loc {
         let mut n = vec![];
         if self.col > 0 {
             n.push(Loc {
-                       col: self.col - 1,
-                       ..*self
-                   });
+                col: self.col - 1,
+                ..*self
+            });
         }
         if self.col < WIDTH - 1 {
             n.push(Loc {
-                       col: self.col + 1,
-                       ..*self
-                   });
+                col: self.col + 1,
+                ..*self
+            });
         }
         if self.row > 0 {
             n.push(Loc {
-                       row: self.row - 1,
-                       ..*self
-                   });
+                row: self.row - 1,
+                ..*self
+            });
         }
         if self.row < HEIGHT - 1 {
             n.push(Loc {
-                       row: self.row + 1,
-                       ..*self
-                   });
+                row: self.row + 1,
+                ..*self
+            });
         }
         n
     }
