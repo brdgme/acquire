@@ -76,6 +76,43 @@ impl Board {
         corps
     }
 
+    /// Find the largest and second-largest merge candidates. The first value are the corporations
+    /// which are being assimilated, and the second value are the target corporations being merged
+    /// into.
+    pub fn merge_candidates(&self, loc: &Loc) -> (Vec<Corp>, Vec<Corp>) {
+        // The larger corporations eating up the smaller ones.
+        let mut into: Vec<Corp> = vec![];
+        let mut into_size: usize = 0;
+        // The smaller corporations being eaten.
+        let mut from: Vec<Corp> = vec![];
+        let mut from_size: usize = 0;
+        for corp in self.neighbouring_corps(loc) {
+            let size = self.corp_size(&corp);
+            if size > into_size {
+                from = into;
+                into = vec![];
+                from_size = into_size;
+                into_size = size;
+            }
+            if size == into_size {
+                into.push(corp);
+            } else {
+                if size > from_size {
+                    from = vec![];
+                    from_size = size;
+                }
+                if size == from_size {
+                    from.push(corp);
+                }
+            }
+        }
+        if into.len() > 1 {
+            // Multiple equal max size, use as from as well.
+            from = into.clone();
+        }
+        (from, into)
+    }
+
     pub fn extend_corp(&mut self, loc: &Loc, corp: &Corp) {
         self.set_tile(loc, Tile::Corp(corp.to_owned()));
         for n_loc in &loc.neighbours() {

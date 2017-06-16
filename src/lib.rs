@@ -41,7 +41,8 @@ pub enum Phase {
     SellOrTrade {
         player: usize,
         corp: Corp,
-        next_phase: Box<Phase>,
+        at: Loc,
+        turn_player: usize,
     },
 }
 
@@ -179,7 +180,7 @@ impl Gamer for Game {
             Command::Found(corp) => self.found(player, &corp),
             Command::Buy(n, corp) => self.buy(player, n, corp),
             Command::Done => self.done(player).map(|l| (l, false)),
-            Command::Merge(corp, into) => self.merge(player, corp, into).map(|l| (l, false)),
+            Command::Merge(corp, into) => self.merge(player, &corp, &into).map(|l| (l, false)),
             Command::Sell(n) => self.sell(player, n).map(|l| (l, false)),
             Command::Trade(n) => self.trade(player, n).map(|l| (l, false)),
             Command::Keep => self.keep(player).map(|l| (l, false)),
@@ -270,10 +271,10 @@ impl Game {
                 self.buy_phase(player);
             }
             0 => {
-                if loc.neighbours().iter().any(|n_loc| {
+                let has_unincorporated_neighbour = loc.neighbours().iter().any(|n_loc| {
                     self.board.get_tile(n_loc) == Tile::Unincorporated
-                })
-                {
+                });
+                if has_unincorporated_neighbour {
                     if self.board.available_corps().is_empty() {
                         bail!(ErrorKind::InvalidInput(
                             "there aren't any corporations available to found"
@@ -288,20 +289,20 @@ impl Game {
                 self.board.set_tile(loc, Tile::Unincorporated);
             }
             _ => {
-                if neighbouring_corps.iter().fold(0, |acc, corp| {
+                let safe_corp_count = neighbouring_corps.iter().fold(0, |acc, corp| {
                     if self.board.corp_is_safe(corp) {
                         acc + 1
                     } else {
                         acc
                     }
-                }) > 1
-                {
+                });
+                if safe_corp_count > 1 {
                     bail!(ErrorKind::InvalidInput(
                         "can't merge safe corporations together".to_string(),
                     ));
                 }
                 self.board.set_tile(loc, Tile::Unincorporated);
-                self.choose_merger_phase(player, *loc);
+                logs.extend(self.choose_merger_phase(player, *loc)?);
             }
         }
         self.players[player].tiles.swap_remove(pos);
@@ -322,15 +323,24 @@ impl Game {
         }
     }
 
-    fn choose_merger_phase(&mut self, player: usize, loc: Loc) {
-        let n_corps = self.board.neighbouring_corps(&loc);
-        if n_corps.len() <= 1 {
+    fn choose_merger_phase(&mut self, player: usize, loc: Loc) -> Result<Vec<Log>> {
+        let (from, into) = self.board.merge_candidates(&loc);
+        if into.is_empty() {
+            // No mergers, go to buy phase.
             self.buy_phase(player);
-            return;
+            return Ok(vec![]);
         }
+        // We set the phase as the merge function validates this.
         self.phase = Phase::ChooseMerger {
             player: player,
             at: loc,
+        };
+        if from.len() == 1 && into.len() == 1 && from[0] != into[0] {
+            // There's no ambiguity, automatically make the merge.
+            self.merge(player, &from[0], &into[0])
+        } else {
+            // Stay in this phase so the player can choose.
+            Ok(vec![])
         }
     }
 
@@ -468,9 +478,68 @@ impl Game {
         (player + 1) % self.players.len()
     }
 
-    pub fn merge(&mut self, player: usize, _corp: Corp, _into: Corp) -> Result<Vec<Log>> {
+    pub fn merge(&mut self, player: usize, from: &Corp, into: &Corp) -> Result<Vec<Log>> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
+        let at = match self.phase {
+            Phase::ChooseMerger { at, .. } => at,
+            _ => {
+                bail!(ErrorKind::InvalidInput(
+                    "can't choose a merger at the moment".to_string(),
+                ))
+            }
+        };
+        if from == into {
+            bail!(ErrorKind::InvalidInput(
+                "can't merge the same corp into itself".to_string(),
+            ));
+        }
+        let (from_candidates, into_candidates) = self.board.merge_candidates(&at);
+        if from_candidates.is_empty() || into_candidates.is_empty() {
+            bail!(ErrorKind::Internal(
+                "merge was called with an empty from or into candidates"
+                    .to_string(),
+            ));
+        }
+        if !from_candidates.contains(from) {
+            bail!(ErrorKind::InvalidInput(
+                format!("{} is not a valid corporation to be merged", from),
+            ));
+        }
+        if !into_candidates.contains(into) {
+            bail!(ErrorKind::InvalidInput(
+                format!("{} is not a valid corporation to merge into", into),
+            ));
+        }
+        if self.board.get_tile(at) == Tile::Unincorporated {
+            self.board.set_tile(at, Tile::Corp(*into));
+        }
+        let mut logs = vec![
+            Log::public(vec![
+                from.render(),
+                N::text(" is merging into "),
+                into.render(),
+            ]),
+        ];
+        logs.extend(self.pay_bonuses(from));
+        self.phase = Phase::SellOrTrade {
+            player,
+            corp: *from,
+            at,
+            turn_player: player,
+        };
+        if self.players[player].shares.get(from).cloned().unwrap_or(0) == 0 {
+            // The player has none of the shares anyway, just skip them.
+            self.next_player_sell_trade();
+        }
+        unimplemented!();
+    }
+
+    fn pay_bonuses(&mut self, corp: &Corp) -> Vec<Log> {
+        unimplemented!();
+    }
+
+    fn next_player_sell_trade(&mut self) {
         unimplemented!();
     }
 
