@@ -109,9 +109,9 @@ impl PubState {
         let mut rows: Vec<Row> = vec![self.player_header()];
         let num_players = self.players.len();
         for p_offset in 0..num_players {
-            let p = player.map(|p| (p + p_offset) % num_players).unwrap_or(
-                p_offset,
-            );
+            let p = player
+                .map(|p| (p + p_offset) % num_players)
+                .unwrap_or(p_offset);
             rows.push(self.player_row(p));
         }
         N::Table(rows)

@@ -171,9 +171,10 @@ impl Gamer for Game {
         input: &str,
         players: &[String],
     ) -> Result<CommandResponse> {
-        let parser = self.command_parser(player).ok_or_else::<Error, _>(|| {
-            ErrorKind::InvalidInput("not your turn".to_string()).into()
-        })?;
+        let parser = self.command_parser(player)
+            .ok_or_else::<Error, _>(|| {
+                ErrorKind::InvalidInput("not your turn".to_string()).into()
+            })?;
         let output = parser.parse(input, players)?;
         match output.value {
             Command::Play(loc) => self.play(player, &loc),
@@ -227,9 +228,10 @@ impl Game {
             // End of game
             return (vec![], false);
         }
-        self.players[player].tiles.extend(self.draw_tiles.drain(
-            0..remaining,
-        ));
+        self.players[player].tiles.extend(
+            self.draw_tiles
+                .drain(0..remaining),
+        );
         (vec![], true)
     }
 
@@ -271,9 +273,10 @@ impl Game {
                 self.buy_phase(player);
             }
             0 => {
-                let has_unincorporated_neighbour = loc.neighbours().iter().any(|n_loc| {
-                    self.board.get_tile(n_loc) == Tile::Unincorporated
-                });
+                let has_unincorporated_neighbour =
+                    loc.neighbours()
+                        .iter()
+                        .any(|n_loc| self.board.get_tile(n_loc) == Tile::Unincorporated);
                 if has_unincorporated_neighbour {
                     if self.board.available_corps().is_empty() {
                         bail!(ErrorKind::InvalidInput(
@@ -536,7 +539,39 @@ impl Game {
     }
 
     fn pay_bonuses(&mut self, corp: &Corp) -> Vec<Log> {
+        let (major, minor) = self.bonus_players(corp);
         unimplemented!();
+    }
+
+    fn bonus_players(&self, corp: &Corp) -> (Vec<usize>, Vec<usize>) {
+        let mut major: Vec<usize> = vec![];
+        let mut major_count: usize = 0;
+        let mut minor: Vec<usize> = vec![];
+        let mut minor_count: usize = 0;
+        for (player, state) in self.players.iter().enumerate() {
+            let shares = state.shares.get(corp).cloned().unwrap_or(0);
+            if shares == 0 {
+                continue;
+            }
+            if shares > major_count {
+                minor = major;
+                minor_count = major_count;
+                major = vec![];
+                major_count = shares;
+            }
+            if shares == major_count {
+                major.push(player);
+            } else {
+                if shares > minor_count {
+                    minor = vec![];
+                    minor_count = shares;
+                }
+                if shares == minor_count {
+                    minor.push(player);
+                }
+            }
+        }
+        (major, minor)
     }
 
     fn next_player_sell_trade(&mut self) {
