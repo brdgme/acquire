@@ -120,6 +120,15 @@ impl Board {
             }
         }
     }
+
+    pub fn convert_corp(&mut self, from: &Corp, into: &Corp) {
+        for loc in &Loc::all() {
+            match self.get_tile(loc) {
+                Tile::Corp(c) if c == *from => self.set_tile(loc, Tile::Corp(*into)),
+                _ => {}
+            }
+        }
+    }
 }
 
 impl Default for Board {

@@ -184,7 +184,7 @@ impl Gamer for Game {
             Command::Merge(corp, into) => self.merge(player, &corp, &into).map(|l| (l, false)),
             Command::Sell(n) => self.sell(player, n).map(|l| (l, false)),
             Command::Trade(n) => self.trade(player, n).map(|l| (l, false)),
-            Command::Keep => self.keep(player).map(|l| (l, false)),
+            Command::Keep => self.keep(player).map(|l| (l, true)),
             Command::End => self.end(player).map(|l| (l, false)),
         }.map(|(logs, can_undo)| {
             CommandResponse {
@@ -533,14 +533,55 @@ impl Game {
         };
         if self.players[player].shares.get(from).cloned().unwrap_or(0) == 0 {
             // The player has none of the shares anyway, just skip them.
-            self.next_player_sell_trade();
+            logs.extend(self.next_player_sell_trade()?);
         }
-        unimplemented!();
+        Ok(logs)
     }
 
     fn pay_bonuses(&mut self, corp: &Corp) -> Vec<Log> {
         let (major, minor) = self.bonus_players(corp);
-        unimplemented!();
+        let major_len = major.len();
+        let minor_len = minor.len();
+        if major_len == 0 {
+            panic!("expected some major bonus players");
+        }
+        let corp_size = self.board.corp_size(corp);
+        let mut major_bonus = corp.major_bonus(corp_size);
+        let minor_bonus = corp.minor_bonus(corp_size);
+        if major_len > 1 && minor_len == 0 {
+            // There are multiple majors so they also get the minor bonus
+            major_bonus += minor_bonus;
+        }
+        let major_per = major_bonus / major_len;
+        let mut logs: Vec<Log> = vec![Game::bonus_log(&major, "Major", major_per)];
+        for p in &major {
+            self.players[*p].money += major_per;
+        }
+        if minor_len > 0 {
+            let minor_per = minor_bonus / minor_len;
+            logs.push(Game::bonus_log(&minor, "Minor", minor_per));
+            for p in &minor {
+                self.players[*p].money += minor_per;
+            }
+        }
+        logs
+    }
+
+    fn bonus_log(players: &[usize], kind: &str, bonus: usize) -> Log {
+        let mut content: Vec<N> = vec![
+            N::text(format!("{} bonus of ", kind)),
+            N::Bold(vec![N::text(format!("${}", bonus))]),
+            N::text(" to "),
+        ];
+        content.extend(players.iter().enumerate().flat_map(|(i, p)| {
+            let mut player_content: Vec<N> = vec![];
+            if i > 0 {
+                player_content.push(N::text(", "));
+            }
+            player_content.push(N::Player(*p));
+            player_content
+        }));
+        Log::public(content)
     }
 
     fn bonus_players(&self, corp: &Corp) -> (Vec<usize>, Vec<usize>) {
@@ -571,11 +612,53 @@ impl Game {
                 }
             }
         }
+        if major.len() > 1 {
+            // If there are multiple majors, they share the minor bonus too
+            minor = vec![];
+        }
         (major, minor)
     }
 
-    fn next_player_sell_trade(&mut self) {
-        unimplemented!();
+    fn next_player_sell_trade(&mut self) -> Result<Vec<Log>> {
+        let (mut player, corp, at, turn_player) = match self.phase {
+            Phase::SellOrTrade {
+                player,
+                corp,
+                at,
+                turn_player,
+            } => (player, corp, at, turn_player),
+            _ => panic!("must be Phase::SellOrTrade"),
+        };
+        player = self.next_player(player);
+        if player == turn_player {
+            // Everyone has had a turn.
+            return self.end_sell_trade_phase();
+        }
+        self.phase = Phase::SellOrTrade {
+            player,
+            corp,
+            at,
+            turn_player,
+        };
+        if self.players[player].shares.get(&corp).cloned().unwrap_or(0) == 0 {
+            return self.next_player_sell_trade();
+        }
+        Ok(vec![])
+    }
+
+    fn end_sell_trade_phase(&mut self) -> Result<Vec<Log>> {
+        let (_, corp, at, turn_player) = match self.phase {
+            Phase::SellOrTrade {
+                player,
+                corp,
+                at,
+                turn_player,
+            } => (player, corp, at, turn_player),
+            _ => panic!("must be Phase::SellOrTrade"),
+        };
+        let (merge_into, _) = self.board.merge_candidates(&at);
+        self.board.convert_corp(&corp, &merge_into[0]);
+        self.choose_merger_phase(turn_player, at)
     }
 
     pub fn sell(&mut self, player: usize, _n: usize) -> Result<Vec<Log>> {
@@ -593,7 +676,11 @@ impl Game {
     pub fn keep(&mut self, player: usize) -> Result<Vec<Log>> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
-        unimplemented!();
+        match self.phase {
+            Phase::SellOrTrade { .. } => {}
+            _ => bail!("not currently in a sell or trade phase"),
+        }
+        self.next_player_sell_trade()
     }
 
     pub fn end(&mut self, player: usize) -> Result<Vec<Log>> {

@@ -38,7 +38,7 @@ impl Game {
                 }
                 Phase::Buy { remaining, .. } => {
                     parsers.push(Box::new(self.buy_parser(player, remaining)));
-                    parsers.push(Box::new(buy_done_parser()));
+                    parsers.push(Box::new(done_parser()));
                 }
                 Phase::ChooseMerger { at, .. } => {
                     parsers.push(Box::new(
@@ -51,7 +51,7 @@ impl Game {
                 Phase::SellOrTrade { player, corp, .. } => {
                     parsers.push(Box::new(self.sell_parser(player, corp)));
                     parsers.push(Box::new(self.trade_parser(player, corp)));
-                    parsers.push(Box::new(sell_done_parser()));
+                    parsers.push(Box::new(keep_parser()));
                 }
             }
             if self.can_end() {
@@ -187,7 +187,7 @@ fn end_parser() -> impl Parser<Command> {
     )
 }
 
-fn buy_done_parser() -> impl Parser<Command> {
+fn done_parser() -> impl Parser<Command> {
     Doc::name_desc(
         "done",
         "finish buying shares and end your turn",
@@ -195,10 +195,10 @@ fn buy_done_parser() -> impl Parser<Command> {
     )
 }
 
-fn sell_done_parser() -> impl Parser<Command> {
+fn keep_parser() -> impl Parser<Command> {
     Doc::name_desc(
-        "done",
+        "keep",
         "finish selling and trading shares",
-        Map::new(Token::new("done"), |_| Command::Done),
+        Map::new(Token::new("keep"), |_| Command::Keep),
     )
 }
