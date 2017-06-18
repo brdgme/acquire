@@ -328,7 +328,7 @@ impl Game {
 
     fn choose_merger_phase(&mut self, player: usize, loc: Loc) -> Result<Vec<Log>> {
         let (from, into) = self.board.merge_candidates(&loc);
-        if into.is_empty() {
+        if from.is_empty() {
             // No mergers, go to buy phase.
             self.buy_phase(player);
             return Ok(vec![]);
@@ -656,15 +656,53 @@ impl Game {
             } => (player, corp, at, turn_player),
             _ => panic!("must be Phase::SellOrTrade"),
         };
-        let (merge_into, _) = self.board.merge_candidates(&at);
+        let (_, merge_into) = self.board.merge_candidates(&at);
         self.board.convert_corp(&corp, &merge_into[0]);
         self.choose_merger_phase(turn_player, at)
     }
 
-    pub fn sell(&mut self, player: usize, _n: usize) -> Result<Vec<Log>> {
+    pub fn sell(&mut self, player: usize, n: usize) -> Result<Vec<Log>> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
-        unimplemented!();
+        let corp = match self.phase {
+            Phase::SellOrTrade { corp, .. } => corp,
+            _ => {
+                bail!(ErrorKind::InvalidInput(
+                    "can't sell or trade at the moment".to_string(),
+                ))
+            }
+        };
+        if n == 0 {
+            bail!(ErrorKind::InvalidInput(
+                "you must sell an amount greater than 0".to_string(),
+            ));
+        }
+        let money = corp.value(self.board.corp_size(&corp)) * n;
+        let mut logs = vec![
+            Log::public(vec![
+                N::Player(player),
+                N::text(" sold "),
+                N::Bold(vec![N::text(format!("{} ", n))]),
+                corp.render(),
+                N::text(" for "),
+                N::Bold(vec![N::text(format!("${}", money))]),
+            ]),
+        ];
+        let will_end_phase = {
+            let owned = self.players[player].shares.entry(corp).or_insert(0);
+            if n > *owned {
+                bail!(ErrorKind::InvalidInput(
+                    "you don't have that many shares".to_string(),
+                ));
+            }
+            *owned -= n;
+            *owned == 0 // Ends the phase if the player is out of shares
+        };
+        self.players[player].money += money;
+        if will_end_phase {
+            logs.extend(self.end_sell_trade_phase()?);
+        }
+        Ok(logs)
     }
 
     pub fn trade(&mut self, player: usize, _n: usize) -> Result<Vec<Log>> {
@@ -678,7 +716,11 @@ impl Game {
         self.assert_player_turn(player)?;
         match self.phase {
             Phase::SellOrTrade { .. } => {}
-            _ => bail!("not currently in a sell or trade phase"),
+            _ => {
+                bail!(ErrorKind::InvalidInput(
+                    "not currently in a sell or trade phase".to_string(),
+                ))
+            }
         }
         self.next_player_sell_trade()
     }
@@ -737,7 +779,83 @@ pub struct PubPlayer {
 }
 
 #[cfg(test)]
+impl<'a> From<&'a str> for Game {
+    fn from(s: &'a str) -> Self {
+        let mut players: Vec<Player> = vec![Player::default(), Player::default()];
+        for (row, line) in s.trim().lines().enumerate() {
+            for (col, ch) in line.trim().chars().enumerate() {
+                if ch >= '0' && ch <= '9' {
+                    let p = ((ch as u8) - b'0') as usize;
+                    while players.len() <= p {
+                        players.push(Player::default());
+                    }
+                    players[p].tiles.push(Loc { row, col });
+                }
+            }
+        }
+        let mut g = Game::new(players.len()).expect("expected new game").0;
+        g.phase = Phase::Play(0);
+        g.players = players;
+        g.board = s.into();
+        g.draw_tiles = vec![];
+        g
+    }
+}
+
+#[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
-    fn it_works() {}
+    fn game_from_str_is_deterministic() {
+        let g1: Game = "...012".into();
+        let g2: Game = "...012".into();
+        assert_eq!(g1, g2);
+    }
+
+    #[test]
+    fn play_works() {
+        let players = vec!["mick".to_string(), "steve".to_string()];
+        let mut g: Game = "
+...
+.0.
+...
+"
+            .into();
+        g.command(0, "play b2", &players)
+            .expect("expected playing tile to work");
+        assert_eq!(
+            g.board,
+            "
+...
+.#.
+...
+"
+                .into()
+        );
+    }
+
+    #[test]
+    fn found_works() {
+        let players = vec!["mick".to_string(), "steve".to_string()];
+        let mut g: Game = "
+...
+#0.
+...
+"
+            .into();
+        g.command(0, "play b2", &players)
+            .expect("expected playing tile to work");
+        g.command(0, "found fe", &players)
+            .expect("expected founding to work");
+        assert_eq!(
+            g.board,
+            "
+...
+FF.
+...
+"
+                .into()
+        );
+    }
 }

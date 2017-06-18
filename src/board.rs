@@ -131,6 +131,33 @@ impl Board {
     }
 }
 
+#[cfg(test)]
+impl<'a> From<&'a str> for Board {
+    fn from(s: &'a str) -> Self {
+        let mut board = Board::default();
+        for (row, line) in s.trim().lines().enumerate() {
+            for (col, ch) in line.trim().chars().enumerate() {
+                board.set_tile(
+                    Loc { row, col },
+                    match ch {
+                        'w' | 'W' => Tile::Corp(Corp::Worldwide),
+                        's' | 'S' => Tile::Corp(Corp::Sackson),
+                        'i' | 'I' => Tile::Corp(Corp::Imperial),
+                        'f' | 'F' => Tile::Corp(Corp::Festival),
+                        'a' | 'A' => Tile::Corp(Corp::American),
+                        'c' | 'C' => Tile::Corp(Corp::Continental),
+                        't' | 'T' => Tile::Corp(Corp::Tower),
+                        'x' | 'X' => Tile::Discarded,
+                        '#' => Tile::Unincorporated,
+                        _ => Tile::Empty,
+                    },
+                );
+            }
+        }
+        board
+    }
+}
+
 impl Default for Board {
     fn default() -> Self {
         Board(iter::repeat(Tile::default()).take(SIZE).collect())
