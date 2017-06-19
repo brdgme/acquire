@@ -35,8 +35,9 @@ impl Board {
         let len = self.0.len();
         let at_u = at.into();
         if len <= at_u {
-            self.0
-                .extend(iter::repeat(Tile::default()).take(at_u - len + 1))
+            self.0.extend(
+                iter::repeat(Tile::default()).take(at_u - len + 1),
+            )
         }
         self.0[at_u] = t;
     }

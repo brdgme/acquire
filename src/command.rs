@@ -140,7 +140,7 @@ impl Game {
                     self.player_shares_parser(player, corp),
                 )),
             ),
-            |(_, n)| Command::Sell(n as usize),
+            |(_, n)| Command::Trade(n as usize),
         )
     }
 

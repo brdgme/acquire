@@ -41,6 +41,7 @@ pub enum Phase {
     SellOrTrade {
         player: usize,
         corp: Corp,
+        into: Corp,
         at: Loc,
         turn_player: usize,
     },
@@ -81,7 +82,7 @@ pub struct PrivState {
     pub tiles: Vec<Loc>,
 }
 
-#[derive(Default, PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct Game {
     pub phase: Phase,
     pub players: Vec<Player>,
@@ -89,6 +90,19 @@ pub struct Game {
     pub draw_tiles: Vec<Loc>,
     pub shares: HashMap<Corp, usize>,
     pub finished: bool,
+}
+
+impl Default for Game {
+    fn default() -> Self {
+        Self {
+            phase: Phase::Play(0),
+            players: vec![],
+            board: Board::default(),
+            draw_tiles: vec![],
+            shares: corp_hash_map(STARTING_SHARES),
+            finished: false,
+        }
+    }
 }
 
 impl Gamer for Game {
@@ -110,11 +124,6 @@ impl Gamer for Game {
         // Place initial tiles onto the board.
         for l in g.draw_tiles.drain(0..players) {
             g.board.set_tile(&l, Tile::Unincorporated);
-        }
-
-        // Set starting shares.
-        for c in Corp::iter() {
-            g.shares.insert(*c, STARTING_SHARES);
         }
 
         // Setup for each player.
@@ -171,10 +180,9 @@ impl Gamer for Game {
         input: &str,
         players: &[String],
     ) -> Result<CommandResponse> {
-        let parser = self.command_parser(player)
-            .ok_or_else::<Error, _>(|| {
-                ErrorKind::InvalidInput("not your turn".to_string()).into()
-            })?;
+        let parser = self.command_parser(player).ok_or_else::<Error, _>(|| {
+            ErrorKind::InvalidInput("not your turn".to_string()).into()
+        })?;
         let output = parser.parse(input, players)?;
         match output.value {
             Command::Play(loc) => self.play(player, &loc),
@@ -228,10 +236,9 @@ impl Game {
             // End of game
             return (vec![], false);
         }
-        self.players[player].tiles.extend(
-            self.draw_tiles
-                .drain(0..remaining),
-        );
+        self.players[player].tiles.extend(self.draw_tiles.drain(
+            0..remaining,
+        ));
         (vec![], true)
     }
 
@@ -273,10 +280,9 @@ impl Game {
                 self.buy_phase(player);
             }
             0 => {
-                let has_unincorporated_neighbour =
-                    loc.neighbours()
-                        .iter()
-                        .any(|n_loc| self.board.get_tile(n_loc) == Tile::Unincorporated);
+                let has_unincorporated_neighbour = loc.neighbours().iter().any(|n_loc| {
+                    self.board.get_tile(n_loc) == Tile::Unincorporated
+                });
                 if has_unincorporated_neighbour {
                     if self.board.available_corps().is_empty() {
                         bail!(ErrorKind::InvalidInput(
@@ -421,12 +427,7 @@ impl Game {
                     ));
                 }
                 self.players[player].money -= price;
-                {
-                    let player_shares = self.players[player].shares.entry(corp).or_insert(0);
-                    *player_shares += n;
-                    let corp_shares = self.shares.entry(corp).or_insert(STARTING_SHARES);
-                    *corp_shares -= n;
-                }
+                self.take_shares(player, n, &corp)?;
                 let new_remaining = remaining - n;
                 let mut logs: Vec<Log> = vec![
                     Log::public(vec![
@@ -528,6 +529,7 @@ impl Game {
         self.phase = Phase::SellOrTrade {
             player,
             corp: *from,
+            into: *into,
             at,
             turn_player: player,
         };
@@ -620,13 +622,14 @@ impl Game {
     }
 
     fn next_player_sell_trade(&mut self) -> Result<Vec<Log>> {
-        let (mut player, corp, at, turn_player) = match self.phase {
+        let (mut player, corp, into, at, turn_player) = match self.phase {
             Phase::SellOrTrade {
                 player,
                 corp,
+                into,
                 at,
                 turn_player,
-            } => (player, corp, at, turn_player),
+            } => (player, corp, into, at, turn_player),
             _ => panic!("must be Phase::SellOrTrade"),
         };
         player = self.next_player(player);
@@ -637,6 +640,7 @@ impl Game {
         self.phase = Phase::SellOrTrade {
             player,
             corp,
+            into,
             at,
             turn_player,
         };
@@ -647,17 +651,17 @@ impl Game {
     }
 
     fn end_sell_trade_phase(&mut self) -> Result<Vec<Log>> {
-        let (_, corp, at, turn_player) = match self.phase {
+        let (corp, into, at, turn_player) = match self.phase {
             Phase::SellOrTrade {
-                player,
                 corp,
+                into,
                 at,
                 turn_player,
-            } => (player, corp, at, turn_player),
+                ..
+            } => (corp, into, at, turn_player),
             _ => panic!("must be Phase::SellOrTrade"),
         };
-        let (_, merge_into) = self.board.merge_candidates(&at);
-        self.board.convert_corp(&corp, &merge_into[0]);
+        self.board.convert_corp(&corp, &into);
         self.choose_merger_phase(turn_player, at)
     }
 
@@ -688,27 +692,112 @@ impl Game {
                 N::Bold(vec![N::text(format!("${}", money))]),
             ]),
         ];
-        let will_end_phase = {
-            let owned = self.players[player].shares.entry(corp).or_insert(0);
-            if n > *owned {
-                bail!(ErrorKind::InvalidInput(
-                    "you don't have that many shares".to_string(),
-                ));
-            }
-            *owned -= n;
-            *owned == 0 // Ends the phase if the player is out of shares
-        };
+        let player_shares = *self.players[player].shares.get(&corp).expect(
+            "could not get player shares",
+        );
+        if n > player_shares {
+            bail!(ErrorKind::InvalidInput(
+                "you don't have that many shares".to_string(),
+            ));
+        }
+        self.return_shares(player, n, &corp)?;
         self.players[player].money += money;
-        if will_end_phase {
-            logs.extend(self.end_sell_trade_phase()?);
+        if n == player_shares {
+            logs.extend(self.next_player_sell_trade()?);
         }
         Ok(logs)
     }
 
-    pub fn trade(&mut self, player: usize, _n: usize) -> Result<Vec<Log>> {
+    pub fn trade(&mut self, player: usize, n: usize) -> Result<Vec<Log>> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
-        unimplemented!();
+        // Validate
+        let (corp, into) = match self.phase {
+            Phase::SellOrTrade { corp, into, .. } => (corp, into),
+            _ => {
+                bail!(ErrorKind::InvalidInput(
+                    "not currently in a sell or trade phase".to_string(),
+                ));
+            }
+        };
+        if n == 0 {
+            bail!(ErrorKind::InvalidInput(
+                "you must specify an amount to trade greater than 0"
+                    .to_string(),
+            ));
+        }
+        if n % 2 != 0 {
+            bail!(ErrorKind::InvalidInput(
+                "you can only trade multiples of 2, trades are 2-for-1"
+                    .to_string(),
+            ));
+        }
+        let corp_shares = self.players[player].shares.get(&corp).cloned().expect(
+            "could not get player shares",
+        );
+        if corp_shares < n {
+            bail!(ErrorKind::InvalidInput(
+                format!("you only have {} {}", corp_shares, corp),
+            ));
+        }
+        let receive = n / 2;
+        let into_shares = self.shares.get(&into).cloned().expect(
+            "could not get into shares",
+        );
+        if receive > into_shares {
+            bail!(ErrorKind::InvalidInput(
+                format!("{} only has {} remaining", into, into_shares),
+            ));
+        }
+        self.return_shares(player, n, &corp)?;
+        self.take_shares(player, receive, &into)?;
+        let mut logs = vec![
+            Log::public(vec![
+                N::Player(player),
+                N::text(" traded "),
+                N::Bold(vec![N::text(format!("{} ", n))]),
+                corp.render(),
+                N::text(" for "),
+                N::Bold(vec![N::text(format!("{} ", receive))]),
+                into.render(),
+            ]),
+        ];
+        if n == corp_shares {
+            logs.extend(self.next_player_sell_trade()?);
+        }
+        Ok(logs)
+    }
+
+    fn take_shares(&mut self, player: usize, n: usize, corp: &Corp) -> Result<()> {
+        let corp_shares = *self.shares.get(corp).expect(
+            "could not get corp share count",
+        );
+        if corp_shares < n {
+            bail!(ErrorKind::InvalidInput(
+                format!("{} only has {} left", corp, corp_shares),
+            ));
+        }
+        let player_shares = self.players[player].shares.entry(*corp).or_insert(0);
+        *player_shares += n;
+        let corp_shares = self.shares.entry(*corp).or_insert(STARTING_SHARES);
+        *corp_shares -= n;
+        Ok(())
+    }
+
+    fn return_shares(&mut self, player: usize, n: usize, corp: &Corp) -> Result<()> {
+        let player_shares = *self.players[player].shares.get(corp).expect(
+            "could not get player share count",
+        );
+        if player_shares < n {
+            bail!(ErrorKind::InvalidInput(
+                format!("only has {} left", player_shares),
+            ));
+        }
+        let player_shares = self.players[player].shares.entry(*corp).or_insert(0);
+        *player_shares -= n;
+        let corp_shares = self.shares.entry(*corp).or_insert(STARTING_SHARES);
+        *corp_shares += n;
+        Ok(())
     }
 
     pub fn keep(&mut self, player: usize) -> Result<Vec<Log>> {
@@ -743,10 +832,18 @@ impl Default for Player {
     fn default() -> Self {
         Player {
             money: STARTING_MONEY,
-            shares: HashMap::new(),
+            shares: corp_hash_map(0),
             tiles: vec![],
         }
     }
+}
+
+fn corp_hash_map(initial: usize) -> HashMap<Corp, usize> {
+    let mut hm: HashMap<Corp, usize> = HashMap::new();
+    for corp in Corp::iter() {
+        hm.insert(*corp, initial);
+    }
+    hm
 }
 
 impl Into<PubState> for Game {
@@ -816,21 +913,18 @@ mod tests {
     #[test]
     fn play_works() {
         let players = vec!["mick".to_string(), "steve".to_string()];
-        let mut g: Game = "
-...
-.0.
-...
-"
+        let mut g: Game = "...
+                           .0.
+                           ..."
             .into();
-        g.command(0, "play b2", &players)
-            .expect("expected playing tile to work");
+        g.command(0, "play b2", &players).expect(
+            "expected playing tile to work",
+        );
         assert_eq!(
             g.board,
-            "
-...
-.#.
-...
-"
+            "...
+             .#.
+             ..."
                 .into()
         );
     }
@@ -838,23 +932,61 @@ mod tests {
     #[test]
     fn found_works() {
         let players = vec!["mick".to_string(), "steve".to_string()];
-        let mut g: Game = "
-...
-#0.
-...
-"
+        let mut g: Game = "...
+                           #0.
+                           ..."
             .into();
-        g.command(0, "play b2", &players)
-            .expect("expected playing tile to work");
-        g.command(0, "found fe", &players)
-            .expect("expected founding to work");
+        g.command(0, "play b2", &players).expect(
+            "expected playing tile to work",
+        );
+        g.command(0, "found fe", &players).expect(
+            "expected founding to work",
+        );
         assert_eq!(
             g.board,
-            "
-...
-FF.
-...
-"
+            "...
+             FF.
+             ..."
+                .into()
+        );
+    }
+
+    #[test]
+    fn merge_works() {
+        let players = vec!["mick".to_string(), "steve".to_string()];
+        let mut g: Game = "FF0
+                           ..A
+                           ..A"
+            .into();
+        g.players[0].shares.insert(Corp::American, 3);
+        g.players[1].shares.insert(Corp::American, 2);
+        g.command(0, "play a3", &players).expect(
+            "expected 'play a3' to work",
+        );
+        g.command(0, "merge am into fe", &players).expect(
+            "expected 'merge am into fe' to work",
+        );
+        assert_eq!(STARTING_MONEY + 3000, g.players[0].money);
+        assert_eq!(STARTING_MONEY + 1500, g.players[1].money);
+        g.command(0, "trade 2", &players).expect(
+            "expected 'trade 2' to work",
+        );
+        g.command(0, "sell 1", &players).expect(
+            "expected 'sell 1' to work",
+        );
+        assert_eq!(Some(&0), g.players[0].shares.get(&Corp::American));
+        assert_eq!(Some(&1), g.players[0].shares.get(&Corp::Festival));
+        assert_eq!(STARTING_MONEY + 3300, g.players[0].money);
+        g.command(1, "sell 2", &players).expect(
+            "expected 'sell 2' to work",
+        );
+        assert_eq!(Some(&0), g.players[1].shares.get(&Corp::American));
+        assert_eq!(STARTING_MONEY + 2100, g.players[1].money);
+        assert_eq!(
+            g.board,
+            "FFF
+             ..F
+             ..F"
                 .into()
         );
     }
