@@ -13,6 +13,7 @@ pub mod corp;
 pub mod board;
 mod render;
 mod command;
+mod stats;
 
 use rand::{thread_rng, Rng};
 use brdgme_game::{Gamer, Log, Status, CommandResponse};
@@ -25,6 +26,7 @@ use std::collections::HashMap;
 use corp::Corp;
 use board::{Board, Loc, Tile};
 use command::Command;
+use stats::Stats;
 
 pub const MIN_PLAYERS: usize = 2;
 pub const MAX_PLAYERS: usize = 6;
@@ -164,10 +166,10 @@ impl Gamer for Game {
         }
 
         // Setup for each player.
-        for p in 0..players {
+        for _ in 0..players {
             let mut player = Player::default();
             player.tiles = g.draw_tiles.drain(0..TILE_HAND_SIZE).collect();
-            g.players.insert(p, player);
+            g.players.push(player);
         }
 
         // Set the start player.
@@ -269,6 +271,12 @@ impl Gamer for Game {
 
     fn command_spec(&self, player: usize) -> Option<CommandSpec> {
         self.command_parser(player).map(|p| p.to_spec())
+    }
+
+    fn points(&self) -> Vec<f32> {
+        (0..self.players.len())
+            .map(|p| self.player_score(p) as f32)
+            .collect()
     }
 }
 
@@ -553,6 +561,8 @@ impl Game {
                 }
                 self.players[player].money -= price;
                 self.take_shares(player, n, &corp)?;
+                self.players[player].stats.buy_sum += price;
+                self.players[player].stats.buys += n;
                 let new_remaining = remaining - n;
                 let mut logs: Vec<Log> = vec![
                     Log::public(vec![
@@ -733,6 +743,7 @@ impl Game {
                 into.render(),
             ]),
         ];
+        self.players[player].stats.merges += 1;
         logs.extend(self.pay_bonuses(from));
         self.phase = Phase::SellOrTrade {
             player,
@@ -766,12 +777,16 @@ impl Game {
         let mut logs: Vec<Log> = vec![Game::bonus_log(&major, "Major", major_per)];
         for p in &major {
             self.players[*p].money += major_per;
+            self.players[*p].stats.major_bonus_sum += major_per;
+            self.players[*p].stats.major_bonuses += 1;
         }
         if minor_len > 0 {
             let minor_per = minor_bonus / minor_len;
             logs.push(Game::bonus_log(&minor, "Minor", minor_per));
             for p in &minor {
                 self.players[*p].money += minor_per;
+                self.players[*p].stats.minor_bonus_sum += minor_per;
+                self.players[*p].stats.minor_bonuses += 1;
             }
         }
         logs
@@ -913,6 +928,8 @@ impl Game {
         }
         self.return_shares(player, n, corp)?;
         self.players[player].money += money;
+        self.players[player].stats.sell_sum += money;
+        self.players[player].stats.sells += n;
         Ok(vec![
             Log::public(vec![
                 N::Player(player),
@@ -969,6 +986,10 @@ impl Game {
                 format!("{} only has {} remaining", into, into_shares),
             ));
         }
+        self.players[player].stats.trades += receive;
+        self.players[player].stats.trade_loss_sum += n * corp.value(self.board.corp_size(&corp));
+        self.players[player].stats.trade_gain_sum += receive *
+            into.value(self.board.corp_size(&into));
         self.return_shares(player, n, &corp)?;
         self.take_shares(player, receive, &into)?;
         let mut logs = vec![
@@ -1055,6 +1076,10 @@ impl Game {
             ]),
         ])
     }
+
+    fn player_score(&self, player: usize) -> usize {
+        self.players[player].money
+    }
 }
 
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
@@ -1062,6 +1087,7 @@ pub struct Player {
     pub money: usize,
     pub shares: HashMap<Corp, usize>,
     pub tiles: Vec<Loc>,
+    pub stats: Stats,
 }
 
 impl Default for Player {
@@ -1070,6 +1096,7 @@ impl Default for Player {
             money: STARTING_MONEY,
             shares: corp_hash_map(0),
             tiles: vec![],
+            stats: Stats::default(),
         }
     }
 }
