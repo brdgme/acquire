@@ -2,12 +2,15 @@ use brdgme_game::Stat;
 
 use std::collections::HashMap;
 
+use Corp;
+
 #[derive(Default, Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct Stats {
     pub buy_sum: usize,
     pub buys: usize,
     pub sell_sum: usize,
     pub sells: usize,
+    pub founds: Vec<Corp>,
     pub merges: usize,
     pub trades: usize,
     pub trade_loss_sum: usize,
@@ -32,6 +35,10 @@ impl Stats {
         s.insert(
             "Sell average".to_string(),
             Stat::Fraction(self.sell_sum as i32, self.sells as i32),
+        );
+        s.insert(
+            "Corporations founded".to_string(),
+            Stat::List(self.founds.iter().map(|c| c.name()).collect()),
         );
         s.insert("Merges".to_string(), Stat::Int(self.merges as i32));
         s.insert("Trades".to_string(), Stat::Int(self.merges as i32));

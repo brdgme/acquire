@@ -497,6 +497,7 @@ impl Game {
                 format!("{} is already on the board", corp),
             ));
         }
+        self.players[player].stats.founds.push(*corp);
         self.board.extend_corp(&at, corp);
         {
             let corp_shares = self.shares.entry(*corp).or_insert(STARTING_SHARES);
