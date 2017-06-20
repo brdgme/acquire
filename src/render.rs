@@ -71,7 +71,7 @@ impl PubState {
                 &CORP_TABLE_HEADER
                     .iter()
                     .map(|h| (A::Left, vec![N::Bold(vec![N::text(*h)])]))
-                    .collect(),
+                    .collect::<Row>(),
                 ROW_PAD
             ),
         ];
@@ -81,7 +81,7 @@ impl PubState {
                     let size = self.board.corp_size(c);
                     let value = c.value(size);
                     row_pad(
-                        &vec![
+                        &[
                             (A::Left, vec![c.render()]),
                             (A::Left, vec![N::text(format!("{}", size))]),
                             (A::Left, vec![N::text(format!("${}", value))]),
@@ -92,7 +92,7 @@ impl PubState {
                                         "{} left",
                                         self.shares.get(c).expect("expected corp to have shares")
                                     )),
-                                ]
+                                ],
                             ),
                             (A::Left, vec![N::text(format!("${}", value * MINOR_MULT))]),
                             (A::Left, vec![N::text(format!("${}", value * MAJOR_MULT))]),
@@ -109,9 +109,9 @@ impl PubState {
         let mut rows: Vec<Row> = vec![self.player_header()];
         let num_players = self.players.len();
         for p_offset in 0..num_players {
-            let p = player.map(|p| (p + p_offset) % num_players).unwrap_or(
-                p_offset,
-            );
+            let p = player
+                .map(|p| (p + p_offset) % num_players)
+                .unwrap_or(p_offset);
             rows.push(self.player_row(p));
         }
         N::Table(rows)

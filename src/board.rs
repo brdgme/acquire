@@ -1,9 +1,12 @@
-use super::corp::{self, Corp};
+use brdgme_game::errors::*;
+use brdgme_markup::Node as N;
 
 use std::iter::{self, FromIterator};
 use std::ops::Range;
 use std::fmt;
 use std::collections::HashSet;
+
+use corp::{self, Corp};
 
 pub const WIDTH: usize = 12;
 pub const HEIGHT: usize = 9;
@@ -35,9 +38,8 @@ impl Board {
         let len = self.0.len();
         let at_u = at.into();
         if len <= at_u {
-            self.0.extend(
-                iter::repeat(Tile::default()).take(at_u - len + 1),
-            )
+            self.0
+                .extend(iter::repeat(Tile::default()).take(at_u - len + 1))
         }
         self.0[at_u] = t;
     }
@@ -130,6 +132,52 @@ impl Board {
             }
         }
     }
+
+    pub fn assert_loc_playable(&self, loc: &Loc) -> Result<()> {
+        if self.loc_neighbours_multiple_safe_corps(loc) {
+            bail!(ErrorKind::InvalidInput(
+                "can't merge multiple safe corporations".to_string(),
+            ));
+        }
+        if self.loc_founds(loc) && self.available_corps().is_empty() {
+            bail!(ErrorKind::InvalidInput(
+                "there are no available unincorporated corporations"
+                    .to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn loc_founds(&self, loc: &Loc) -> bool {
+        let mut has_unincorporated = false;
+        for n_loc in &loc.neighbours() {
+            match self.get_tile(n_loc) {
+                Tile::Unincorporated => has_unincorporated = true,
+                Tile::Corp(_) => return false,
+                _ => {}
+            }
+        }
+        has_unincorporated
+    }
+
+    pub fn loc_neighbours_multiple_safe_corps(&self, loc: &Loc) -> bool {
+        let mut has_safe_corp = false;
+        for corp in self.neighbouring_corps(loc) {
+            if self.corp_is_safe(&corp) {
+                if has_safe_corp {
+                    return true;
+                }
+                has_safe_corp = true
+            }
+        }
+        false
+    }
+
+    pub fn set_discarded(&mut self, locs: &[Loc]) {
+        for loc in locs {
+            self.set_tile(loc, Tile::Discarded);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -217,6 +265,10 @@ impl Loc {
 
     pub fn name(&self) -> String {
         format!("{}", self)
+    }
+
+    pub fn render(&self) -> N {
+        N::Bold(vec![N::text(self.name())])
     }
 }
 
