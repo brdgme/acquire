@@ -141,8 +141,7 @@ impl Board {
         }
         if self.loc_founds(loc) && self.available_corps().is_empty() {
             bail!(ErrorKind::InvalidInput(
-                "there are no available unincorporated corporations"
-                    .to_string(),
+                "there are no available unincorporated corporations".to_string(),
             ));
         }
         Ok(())

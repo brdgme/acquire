@@ -335,7 +335,7 @@ impl Board {
                 })
                 .collect::<Vec<(usize, usize, Vec<N>)>>(),
         );
-        N::Canvas(layers)
+        N::Table(vec![vec![(A::Left, vec![N::Canvas(layers)])]])
     }
 }
 

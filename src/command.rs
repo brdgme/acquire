@@ -38,7 +38,9 @@ impl Game {
                     )));
                 }
                 Phase::Buy { remaining, .. } => {
-                    parsers.push(Box::new(self.buy_parser(player, remaining)));
+                    if remaining > 0 {
+                        parsers.push(Box::new(self.buy_parser(player, remaining)));
+                    }
                     parsers.push(Box::new(done_parser()));
                 }
                 Phase::ChooseMerger { at, .. } => {
@@ -51,7 +53,13 @@ impl Game {
                 }
                 Phase::SellOrTrade { player, corp, .. } => {
                     parsers.push(Box::new(self.sell_parser(player, corp)));
-                    parsers.push(Box::new(self.trade_parser(player, corp)));
+                    if self.players[player]
+                        .shares
+                        .get(&corp)
+                        .expect("could not get player shares") >= &2
+                    {
+                        parsers.push(Box::new(self.trade_parser(player, corp)));
+                    }
                     parsers.push(Box::new(keep_parser()));
                 }
             }
@@ -151,7 +159,7 @@ impl Game {
             self.players
                 .get(player)
                 .and_then(|p| p.shares.get(&corp).cloned())
-                .unwrap_or(1) as i32,
+                .expect("could not et player shares") as i32,
         )
     }
 

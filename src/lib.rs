@@ -33,6 +33,8 @@ pub const MAX_PLAYERS: usize = 6;
 pub const STARTING_MONEY: usize = 6000;
 pub const STARTING_SHARES: usize = 25;
 pub const TILE_HAND_SIZE: usize = 6;
+pub const BONUS_ROUNDING: usize = 100;
+pub const DUMMY_PLAYER_OFFSET: usize = 999;
 
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum Phase {
@@ -176,15 +178,26 @@ impl Gamer for Game {
         let start_player = (thread_rng().next_u32() as usize) % players;
         g.phase = Phase::Play(start_player);
 
-        Ok((
-            g,
-            vec![
-                Log::public(vec![
-                    N::Player(start_player),
-                    N::text(" will start the game"),
+        let mut logs: Vec<Log> = vec![];
+        if players == 2 {
+            // 2 players gets a dummy shareholder, output details.
+            logs.push(Log::public(vec![
+                N::Bold(vec![
+                    N::text(
+                        "\
+2 player special rule: a dummy player is added for shareholder bonuses. A dice (D6) is rolled to \
+determine the dummy player's shares. The money for the dummy player is not tracked and it is not \
+able to win the game."
+                    ),
                 ]),
-            ],
-        ))
+            ]))
+        }
+        logs.push(Log::public(vec![
+            N::Player(start_player),
+            N::text(" will start the game"),
+        ]));
+
+        Ok((g, logs))
     }
 
     fn status(&self) -> Status {
@@ -301,6 +314,12 @@ enum CanEnd {
     False(CanEndFalse),
 }
 
+struct BonusPlayers {
+    major: Vec<usize>,
+    minor: Vec<usize>,
+    dummy_shares: usize,
+}
+
 impl Game {
     pub fn can_play(&self, player: usize) -> bool {
         match self.phase {
@@ -311,11 +330,11 @@ impl Game {
 
     fn draw_replacement_tiles(&mut self, player: usize) -> Result<(Vec<Log>, bool)> {
         // Discard permanently unplayable tiles.
-        let (keep, discard): (Vec<Loc>, Vec<Loc>) = self.players[player].tiles.iter().partition(
-            |loc| {
-                self.board.loc_neighbours_multiple_safe_corps(loc)
-            },
-        );
+        let (mut keep, discard): (Vec<Loc>, Vec<Loc>) =
+            self.players[player]
+                .tiles
+                .iter()
+                .partition(|loc| !self.board.loc_neighbours_multiple_safe_corps(loc));
         let mut logs: Vec<Log> = vec![];
         if !discard.is_empty() {
             self.board.set_discarded(&discard);
@@ -365,7 +384,8 @@ impl Game {
             ],
             vec![player],
         ));
-        self.players[player].tiles.extend(new_tiles);
+        keep.extend(new_tiles);
+        self.players[player].tiles = keep;
         Ok((logs, false))
     }
 
@@ -564,27 +584,24 @@ impl Game {
                 self.take_shares(player, n, &corp)?;
                 self.players[player].stats.buy_sum += price;
                 self.players[player].stats.buys += n;
-                let new_remaining = remaining - n;
-                let mut logs: Vec<Log> = vec![
-                    Log::public(vec![
-                        N::Player(player),
-                        N::text(" bought "),
-                        N::Bold(vec![N::text(format!("{} ", n))]),
-                        corp.render(),
-                        N::text(" for "),
-                        N::Bold(vec![N::text(format!("${}", price))]),
-                    ]),
-                ];
 
-                if new_remaining == 0 {
-                    logs.extend(self.end_turn()?);
-                    return Ok((logs, false));
-                }
                 self.phase = Phase::Buy {
                     player,
-                    remaining: new_remaining,
+                    remaining: remaining - n,
                 };
-                Ok((logs, true))
+                Ok((
+                    vec![
+                        Log::public(vec![
+                            N::Player(player),
+                            N::text(" bought "),
+                            N::Bold(vec![N::text(format!("{} ", n))]),
+                            corp.render(),
+                            N::text(" for "),
+                            N::Bold(vec![N::text(format!("${}", price))]),
+                        ]),
+                    ],
+                    true,
+                ))
             }
             _ => {
                 bail!(ErrorKind::InvalidInput(
@@ -614,7 +631,13 @@ impl Game {
         for corp in Corp::iter() {
             let size = self.board.corp_size(corp);
             if size > 0 {
-                self.pay_bonuses(corp);
+                logs.push(Log::public(vec![
+                    N::Bold(vec![
+                        N::text("Paying shareholder bonuses for "),
+                        corp.render(),
+                    ]),
+                ]));
+                logs.extend(self.pay_bonuses(corp));
             }
             for player in 0..self.players.len() {
                 let p_shares = *self.players[player]
@@ -735,7 +758,10 @@ impl Game {
             ));
         }
         if self.board.get_tile(at) == Tile::Unincorporated {
+            // We just give the tile to the big corp now to make it visually obvious.
             self.board.set_tile(at, Tile::Corp(*into));
+            // Make sure we also consume any unincorporated tiles if required.
+            self.board.extend_corp(&at, into);
         }
         let mut logs = vec![
             Log::public(vec![
@@ -761,7 +787,20 @@ impl Game {
     }
 
     fn pay_bonuses(&mut self, corp: &Corp) -> Vec<Log> {
-        let (major, minor) = self.bonus_players(corp);
+        let BonusPlayers {
+            major,
+            minor,
+            dummy_shares,
+        } = self.bonus_players(corp);
+
+        let mut logs: Vec<Log> = vec![];
+        if dummy_shares > 0 {
+            logs.push(Log::public(vec![
+                N::text("The dummy player rolled "),
+                N::Bold(vec![N::text(format!("{}", dummy_shares))]),
+            ]));
+        }
+
         let major_len = major.len();
         let minor_len = minor.len();
         if major_len == 0 {
@@ -770,21 +809,30 @@ impl Game {
         let corp_size = self.board.corp_size(corp);
         let mut major_bonus = corp.major_bonus(corp_size);
         let minor_bonus = corp.minor_bonus(corp_size);
-        if major_len > 1 && minor_len == 0 {
+        if minor_len == 0 {
             // There are multiple majors so they also get the minor bonus
             major_bonus += minor_bonus;
         }
-        let major_per = major_bonus / major_len;
-        let mut logs: Vec<Log> = vec![Game::bonus_log(&major, "Major", major_per)];
+        // Round up to the nearest 100
+        let major_per = (major_bonus / BONUS_ROUNDING + major_len - 1) / major_len * BONUS_ROUNDING;
+        logs.push(Game::bonus_log(&major, "Major", major_per));
         for p in &major {
+            if *p == DUMMY_PLAYER_OFFSET {
+                continue;
+            }
             self.players[*p].money += major_per;
             self.players[*p].stats.major_bonus_sum += major_per;
             self.players[*p].stats.major_bonuses += 1;
         }
         if minor_len > 0 {
-            let minor_per = minor_bonus / minor_len;
+            // Round up to the nearest 100
+            let minor_per = (minor_bonus / BONUS_ROUNDING + minor_len - 1) / minor_len *
+                BONUS_ROUNDING;
             logs.push(Game::bonus_log(&minor, "Minor", minor_per));
             for p in &minor {
+                if *p == DUMMY_PLAYER_OFFSET {
+                    continue;
+                }
                 self.players[*p].money += minor_per;
                 self.players[*p].stats.minor_bonus_sum += minor_per;
                 self.players[*p].stats.minor_bonuses += 1;
@@ -804,15 +852,24 @@ impl Game {
             if i > 0 {
                 player_content.push(N::text(", "));
             }
-            player_content.push(N::Player(*p));
+            player_content.push(match *p {
+                DUMMY_PLAYER_OFFSET => N::Bold(vec![N::text("dummy player")]),
+                _ => N::Player(*p),
+            });
             player_content
         }));
         Log::public(content)
     }
 
-    fn bonus_players(&self, corp: &Corp) -> (Vec<usize>, Vec<usize>) {
+    fn bonus_players(&self, corp: &Corp) -> BonusPlayers {
         let mut major: Vec<usize> = vec![];
         let mut major_count: usize = 0;
+        let mut dummy_shares: usize = 0;
+        if self.players.len() == 2 {
+            dummy_shares = (thread_rng().gen::<usize>() % 5) + 1;
+            major.push(DUMMY_PLAYER_OFFSET);
+            major_count = dummy_shares;
+        }
         let mut minor: Vec<usize> = vec![];
         let mut minor_count: usize = 0;
         for (player, state) in self.players.iter().enumerate() {
@@ -842,7 +899,11 @@ impl Game {
             // If there are multiple majors, they share the minor bonus too
             minor = vec![];
         }
-        (major, minor)
+        BonusPlayers {
+            major,
+            minor,
+            dummy_shares,
+        }
     }
 
     fn next_player_sell_trade(&mut self) -> Result<Vec<Log>> {
