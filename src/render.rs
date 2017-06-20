@@ -2,9 +2,11 @@ use brdgme_game::Renderer;
 use brdgme_markup::{Node as N, Align as A, Row, row_pad};
 use brdgme_color::*;
 
-use super::PubState;
+use PubState;
 use board::{self, Board, Loc, Tile};
-use corp::{Corp, MINOR_MULT, MAJOR_MULT};
+use corp::{Corp, MINOR_MULT, MAJOR_MULT, GAME_END_SIZE};
+use CanEnd;
+use CanEndFalse;
 
 use std::iter::repeat;
 
@@ -50,6 +52,10 @@ impl Renderer for PubState {
         vec![
             N::Table(vec![
                 vec![(A::Center, vec![self.board.render(&tiles)])],
+                vec![],
+                vec![
+                    (A::Center, vec![self.can_end().render_end_text()]),
+                ],
                 vec![],
                 vec![(A::Center, vec![self.corp_table()])],
                 vec![],
@@ -344,5 +350,40 @@ impl Corp {
 
     pub fn render_abbrev(self) -> N {
         self.render_in_color(vec![N::text(self.abbrev())])
+    }
+}
+
+impl CanEnd {
+    fn render_end_text(&self) -> N {
+        N::Fg(
+            GREY.into(),
+            vec![
+                match *self {
+                    CanEnd::Triggered => N::Bold(
+                        vec![N::text("The game will end at the end of this turn")]
+                    ),
+                    CanEnd::Finished => N::Bold(vec![N::text("The game has ended")]),
+                    CanEnd::True => N::Bold(vec![N::text("The end of the game can be triggered")]),
+                    CanEnd::False(ref caf) => caf.render_end_text(),
+                },
+            ],
+        )
+    }
+}
+
+impl CanEndFalse {
+    fn render_end_text(&self) -> N {
+        if self.largest == 0 {
+            return N::text("No corporations have been founded yet");
+        }
+        N::Group(vec![
+            N::text("Largest corporation is "),
+            N::Bold(vec![N::text(format!("{}", self.largest))]),
+            N::text(" of "),
+            N::Bold(vec![N::text(format!("{}", GAME_END_SIZE))]),
+            N::text(", "),
+            N::Bold(vec![N::text(format!("{}", self.unsafe_count))]),
+            N::text(" unsafe remaining"),
+        ])
     }
 }

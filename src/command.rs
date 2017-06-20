@@ -55,7 +55,7 @@ impl Game {
                     parsers.push(Box::new(keep_parser()));
                 }
             }
-            if self.can_end() == CanEnd::True {
+            if self.pub_state(Some(player)).can_end() == CanEnd::True {
                 parsers.push(Box::new(end_parser()));
             }
         }

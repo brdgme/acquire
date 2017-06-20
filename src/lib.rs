@@ -77,6 +77,40 @@ pub struct PubState {
     pub finished: bool,
 }
 
+impl PubState {
+    fn can_end(&self) -> CanEnd {
+        if self.finished {
+            return CanEnd::Finished;
+        }
+        if self.last_turn {
+            return CanEnd::Triggered;
+        }
+        let mut largest: usize = 0;
+        let mut has_safe: bool = false;
+        let mut unsafe_count: usize = 0;
+        for corp in Corp::iter() {
+            let size = self.board.corp_size(corp);
+            if size > largest {
+                largest = size;
+            }
+            if size >= corp::SAFE_SIZE {
+                has_safe = true;
+            }
+            if size > 0 && size < corp::SAFE_SIZE {
+                unsafe_count += 1;
+            }
+        }
+        if largest >= corp::GAME_END_SIZE || has_safe && unsafe_count == 0 {
+            return CanEnd::True;
+        }
+        CanEndFalse {
+            largest,
+            has_safe,
+            unsafe_count,
+        }.into()
+    }
+}
+
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct PrivState {
     pub id: usize,
@@ -154,7 +188,7 @@ impl Gamer for Game {
     fn status(&self) -> Status {
         if self.finished {
             Status::Finished {
-                winners: vec![],
+                winners: self.winners(),
                 stats: vec![],
             }
         } else {
@@ -163,6 +197,21 @@ impl Gamer for Game {
                 eliminated: vec![],
             }
         }
+    }
+
+    fn winners(&self) -> Vec<usize> {
+        let mut money: usize = 0;
+        let mut winners: Vec<usize> = vec![];
+        for (player, p_state) in self.players.iter().enumerate() {
+            if p_state.money > money {
+                money = p_state.money;
+                winners = vec![];
+            }
+            if p_state.money == money {
+                winners.push(player);
+            }
+        }
+        winners
     }
 
     fn pub_state(&self, player: Option<usize>) -> Self::PubState {
@@ -238,37 +287,13 @@ impl Into<CanEnd> for CanEndFalse {
 
 #[derive(Debug, PartialEq)]
 enum CanEnd {
+    Triggered,
+    Finished,
     True,
     False(CanEndFalse),
 }
 
 impl Game {
-    fn can_end(&self) -> CanEnd {
-        let mut largest: usize = 0;
-        let mut has_safe: bool = false;
-        let mut unsafe_count: usize = 0;
-        for corp in Corp::iter() {
-            let size = self.board.corp_size(corp);
-            if size > largest {
-                largest = size;
-            }
-            if size >= corp::SAFE_SIZE {
-                has_safe = true;
-            }
-            if size > 0 && size < corp::SAFE_SIZE {
-                unsafe_count += 1;
-            }
-        }
-        if largest >= corp::GAME_END_SIZE || has_safe && unsafe_count == 0 {
-            return CanEnd::True;
-        }
-        CanEndFalse {
-            largest,
-            has_safe,
-            unsafe_count,
-        }.into()
-    }
-
     pub fn can_play(&self, player: usize) -> bool {
         match self.phase {
             Phase::Play(p) if p == player => true,
@@ -1013,7 +1038,7 @@ impl Game {
     pub fn handle_end_command(&mut self, player: usize) -> Result<Vec<Log>> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
-        if self.can_end() != CanEnd::True {
+        if self.pub_state(None).can_end() != CanEnd::True {
             bail!(ErrorKind::InvalidInput(
                 "can't end the game at the moment".to_string(),
             ));
