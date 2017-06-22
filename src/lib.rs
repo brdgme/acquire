@@ -330,11 +330,10 @@ impl Game {
 
     fn draw_replacement_tiles(&mut self, player: usize) -> Result<(Vec<Log>, bool)> {
         // Discard permanently unplayable tiles.
-        let (mut keep, discard): (Vec<Loc>, Vec<Loc>) =
-            self.players[player]
-                .tiles
-                .iter()
-                .partition(|loc| !self.board.loc_neighbours_multiple_safe_corps(loc));
+        let (mut keep, discard): (Vec<Loc>, Vec<Loc>) = self.players[player]
+            .tiles
+            .iter()
+            .partition(|loc| !self.board.loc_neighbours_multiple_safe_corps(loc));
         let mut logs: Vec<Log> = vec![];
         if !discard.is_empty() {
             self.board.set_discarded(&discard);
@@ -420,22 +419,20 @@ impl Game {
                 logs.push(Log::public(vec![
                     n_corp.render(),
                     N::text(" increased in size to "),
-                    N::Bold(vec![
-                        N::text(format!("{}", self.board.corp_size(n_corp))),
-                    ]),
+                    N::Bold(
+                        vec![N::text(format!("{}", self.board.corp_size(n_corp)))]
+                    ),
                 ]));
                 self.buy_phase(player);
             }
             0 => {
-                let has_unincorporated_neighbour =
-                    loc.neighbours()
-                        .iter()
-                        .any(|n_loc| self.board.get_tile(n_loc) == Tile::Unincorporated);
+                let has_unincorporated_neighbour = loc.neighbours()
+                    .iter()
+                    .any(|n_loc| self.board.get_tile(n_loc) == Tile::Unincorporated);
                 if has_unincorporated_neighbour {
                     if self.board.available_corps().is_empty() {
                         bail!(ErrorKind::InvalidInput(
-                            "there aren't any corporations available to found"
-                                .to_string(),
+                            "there aren't any corporations available to found".to_string(),
                         ));
                     }
                     self.found_phase(player, loc.to_owned());
@@ -446,13 +443,14 @@ impl Game {
                 self.board.set_tile(loc, Tile::Unincorporated);
             }
             _ => {
-                let safe_corp_count = neighbouring_corps.iter().fold(0, |acc, corp| {
-                    if self.board.corp_is_safe(corp) {
+                let safe_corp_count = neighbouring_corps.iter().fold(
+                    0,
+                    |acc, corp| if self.board.corp_is_safe(corp) {
                         acc + 1
                     } else {
                         acc
-                    }
-                });
+                    },
+                );
                 if safe_corp_count > 1 {
                     bail!(ErrorKind::InvalidInput(
                         "can't merge safe corporations together".to_string(),
@@ -530,11 +528,7 @@ impl Game {
         self.buy_phase(player);
         Ok((
             vec![
-                Log::public(vec![
-                    N::Player(player),
-                    N::text(" founded "),
-                    corp.render(),
-                ]),
+                Log::public(vec![N::Player(player), N::text(" founded "), corp.render()]),
             ],
             match self.phase {
                 Phase::Buy { .. } => true,
@@ -743,8 +737,7 @@ impl Game {
         let (from_candidates, into_candidates) = self.board.merge_candidates(&at);
         if from_candidates.is_empty() || into_candidates.is_empty() {
             bail!(ErrorKind::Internal(
-                "merge was called with an empty from or into candidates"
-                    .to_string(),
+                "merge was called with an empty from or into candidates".to_string(),
             ));
         }
         if !from_candidates.contains(from) {
@@ -1018,14 +1011,12 @@ impl Game {
         };
         if n == 0 {
             bail!(ErrorKind::InvalidInput(
-                "you must specify an amount to trade greater than 0"
-                    .to_string(),
+                "you must specify an amount to trade greater than 0".to_string(),
             ));
         }
         if n % 2 != 0 {
             bail!(ErrorKind::InvalidInput(
-                "you can only trade multiples of 2, trades are 2-for-1"
-                    .to_string(),
+                "you can only trade multiples of 2, trades are 2-for-1".to_string(),
             ));
         }
         let corp_shares = self.players[player]
