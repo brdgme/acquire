@@ -352,7 +352,7 @@ impl Game {
                             ns.push(d.render());
                             ns
                         })
-                        .collect()
+                        .collect(),
                 ),
             ]))
         }
@@ -378,7 +378,7 @@ impl Game {
                             ns.push(d.render());
                             ns
                         })
-                        .collect()
+                        .collect(),
                 ),
             ],
             vec![player],
@@ -420,7 +420,7 @@ impl Game {
                     n_corp.render(),
                     N::text(" increased in size to "),
                     N::Bold(
-                        vec![N::text(format!("{}", self.board.corp_size(n_corp)))]
+                        vec![N::text(format!("{}", self.board.corp_size(n_corp)))],
                     ),
                 ]));
                 self.buy_phase(player);
@@ -669,7 +669,7 @@ impl Game {
             Log::public(vec![
                 N::Player(player),
                 N::text(
-                    " has no playable tiles and will draw a new hand, discarded "
+                    " has no playable tiles and will draw a new hand, discarded ",
                 ),
                 N::Group(
                     self.players[player]
@@ -684,7 +684,7 @@ impl Game {
                             ns.push(loc.render());
                             ns
                         })
-                        .collect()
+                        .collect(),
                 ),
             ]),
         ];
@@ -1123,7 +1123,7 @@ impl Game {
                 N::Bold(vec![
                     N::Player(player),
                     N::text(
-                        " triggered the end of the game at the end of their turn"
+                        " triggered the end of the game at the end of their turn",
                     ),
                 ]),
             ]),
@@ -1272,25 +1272,25 @@ mod tests {
                            ..A
                            ..A"
             .into();
-        g.players[0].shares.insert(Corp::American, 3);
-        g.players[1].shares.insert(Corp::American, 2);
+        g.players[0].shares.insert(Corp::American, 9);
+        g.players[1].shares.insert(Corp::American, 8);
         g.command(0, "play a3", &players)
             .expect("expected 'play a3' to work");
         g.command(0, "merge am into fe", &players)
             .expect("expected 'merge am into fe' to work");
         assert_eq!(STARTING_MONEY + 3000, g.players[0].money);
         assert_eq!(STARTING_MONEY + 1500, g.players[1].money);
-        g.command(0, "trade 2", &players)
-            .expect("expected 'trade 2' to work");
+        g.command(0, "trade 8", &players)
+            .expect("expected 'trade 8' to work");
         g.command(0, "sell 1", &players)
             .expect("expected 'sell 1' to work");
         assert_eq!(Some(&0), g.players[0].shares.get(&Corp::American));
-        assert_eq!(Some(&1), g.players[0].shares.get(&Corp::Festival));
+        assert_eq!(Some(&4), g.players[0].shares.get(&Corp::Festival));
         assert_eq!(STARTING_MONEY + 3300, g.players[0].money);
-        g.command(1, "sell 2", &players)
-            .expect("expected 'sell 2' to work");
+        g.command(1, "sell 8", &players)
+            .expect("expected 'sell 8' to work");
         assert_eq!(Some(&0), g.players[1].shares.get(&Corp::American));
-        assert_eq!(STARTING_MONEY + 2100, g.players[1].money);
+        assert_eq!(STARTING_MONEY + 3900, g.players[1].money);
         assert_eq!(
             g.board,
             "FFF

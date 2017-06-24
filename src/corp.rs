@@ -85,7 +85,7 @@ impl Corp {
         N::Bold(vec![
             N::Fg(
                 self.color().into(),
-                vec![N::text(format!("{}", self))]
+                vec![N::text(format!("{}", self))],
             ),
         ])
     }
