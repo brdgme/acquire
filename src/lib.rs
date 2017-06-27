@@ -247,10 +247,9 @@ able to win the game."
         input: &str,
         players: &[String],
     ) -> Result<CommandResponse> {
-        let parser = self.command_parser(player)
-            .ok_or_else::<Error, _>(|| {
-                ErrorKind::InvalidInput("not your turn".to_string()).into()
-            })?;
+        let parser = self.command_parser(player).ok_or_else::<Error, _>(|| {
+            ErrorKind::InvalidInput("not your turn".to_string()).into()
+        })?;
         let output = parser.parse(input, players)?;
         match output.value {
             Command::Play(loc) => self.handle_play_command(player, &loc),
@@ -258,8 +257,9 @@ able to win the game."
             Command::Buy(n, corp) => self.handle_buy_command(player, n, corp),
             Command::Done => self.handle_done_command(player).map(|l| (l, false)),
             Command::Merge(corp, into) => {
-                self.handle_merge_command(player, &corp, &into)
-                    .map(|l| (l, false))
+                self.handle_merge_command(player, &corp, &into).map(|l| {
+                    (l, false)
+                })
             }
             Command::Sell(n) => self.handle_sell_command(player, n).map(|l| (l, false)),
             Command::Trade(n) => self.handle_trade_command(player, n).map(|l| (l, false)),
@@ -330,10 +330,10 @@ impl Game {
 
     fn draw_replacement_tiles(&mut self, player: usize) -> Result<(Vec<Log>, bool)> {
         // Discard permanently unplayable tiles.
-        let (mut keep, discard): (Vec<Loc>, Vec<Loc>) = self.players[player]
-            .tiles
-            .iter()
-            .partition(|loc| !self.board.loc_neighbours_multiple_safe_corps(loc));
+        let (mut keep, discard): (Vec<Loc>, Vec<Loc>) =
+            self.players[player].tiles.iter().partition(|loc| {
+                !self.board.loc_neighbours_multiple_safe_corps(loc)
+            });
         let mut logs: Vec<Log> = vec![];
         if !discard.is_empty() {
             self.board.set_discarded(&discard);
@@ -352,7 +352,7 @@ impl Game {
                             ns.push(d.render());
                             ns
                         })
-                        .collect(),
+                        .collect()
                 ),
             ]))
         }
@@ -378,7 +378,7 @@ impl Game {
                             ns.push(d.render());
                             ns
                         })
-                        .collect(),
+                        .collect()
                 ),
             ],
             vec![player],
@@ -419,20 +419,21 @@ impl Game {
                 logs.push(Log::public(vec![
                     n_corp.render(),
                     N::text(" increased in size to "),
-                    N::Bold(
-                        vec![N::text(format!("{}", self.board.corp_size(n_corp)))],
-                    ),
+                    N::Bold(vec![
+                        N::text(format!("{}", self.board.corp_size(n_corp))),
+                    ]),
                 ]));
                 self.buy_phase(player);
             }
             0 => {
-                let has_unincorporated_neighbour = loc.neighbours()
-                    .iter()
-                    .any(|n_loc| self.board.get_tile(n_loc) == Tile::Unincorporated);
+                let has_unincorporated_neighbour = loc.neighbours().iter().any(|n_loc| {
+                    self.board.get_tile(n_loc) == Tile::Unincorporated
+                });
                 if has_unincorporated_neighbour {
                     if self.board.available_corps().is_empty() {
                         bail!(ErrorKind::InvalidInput(
-                            "there aren't any corporations available to found".to_string(),
+                            "there aren't any corporations available to found"
+                                .to_string(),
                         ));
                     }
                     self.found_phase(player, loc.to_owned());
@@ -443,14 +444,13 @@ impl Game {
                 self.board.set_tile(loc, Tile::Unincorporated);
             }
             _ => {
-                let safe_corp_count = neighbouring_corps.iter().fold(
-                    0,
-                    |acc, corp| if self.board.corp_is_safe(corp) {
+                let safe_corp_count = neighbouring_corps.iter().fold(0, |acc, corp| {
+                    if self.board.corp_is_safe(corp) {
                         acc + 1
                     } else {
                         acc
-                    },
-                );
+                    }
+                });
                 if safe_corp_count > 1 {
                     bail!(ErrorKind::InvalidInput(
                         "can't merge safe corporations together".to_string(),
@@ -528,7 +528,11 @@ impl Game {
         self.buy_phase(player);
         Ok((
             vec![
-                Log::public(vec![N::Player(player), N::text(" founded "), corp.render()]),
+                Log::public(vec![
+                    N::Player(player),
+                    N::text(" founded "),
+                    corp.render(),
+                ]),
             ],
             match self.phase {
                 Phase::Buy { .. } => true,
@@ -634,10 +638,9 @@ impl Game {
                 logs.extend(self.pay_bonuses(corp));
             }
             for player in 0..self.players.len() {
-                let p_shares = *self.players[player]
-                    .shares
-                    .get(corp)
-                    .expect("could not get player shares");
+                let p_shares = *self.players[player].shares.get(corp).expect(
+                    "could not get player shares",
+                );
                 if p_shares > 0 {
                     logs.extend(self.sell(player, p_shares, corp)?);
                 }
@@ -669,7 +672,7 @@ impl Game {
             Log::public(vec![
                 N::Player(player),
                 N::text(
-                    " has no playable tiles and will draw a new hand, discarded ",
+                    " has no playable tiles and will draw a new hand, discarded "
                 ),
                 N::Group(
                     self.players[player]
@@ -684,7 +687,7 @@ impl Game {
                             ns.push(loc.render());
                             ns
                         })
-                        .collect(),
+                        .collect()
                 ),
             ]),
         ];
@@ -737,7 +740,8 @@ impl Game {
         let (from_candidates, into_candidates) = self.board.merge_candidates(&at);
         if from_candidates.is_empty() || into_candidates.is_empty() {
             bail!(ErrorKind::Internal(
-                "merge was called with an empty from or into candidates".to_string(),
+                "merge was called with an empty from or into candidates"
+                    .to_string(),
             ));
         }
         if !from_candidates.contains(from) {
@@ -955,10 +959,9 @@ impl Game {
             }
         };
         let mut logs = self.sell(player, n, &corp)?;
-        if *self.players[player]
-            .shares
-            .get(&corp)
-            .expect("could not get player shares") == 0
+        if *self.players[player].shares.get(&corp).expect(
+            "could not get player shares",
+        ) == 0
         {
             logs.extend(self.next_player_sell_trade()?);
         }
@@ -972,10 +975,9 @@ impl Game {
             ));
         }
         let money = corp.value(self.board.corp_size(corp)) * n;
-        let player_shares = *self.players[player]
-            .shares
-            .get(corp)
-            .expect("could not get player shares");
+        let player_shares = *self.players[player].shares.get(corp).expect(
+            "could not get player shares",
+        );
         if n > player_shares {
             bail!(ErrorKind::InvalidInput(
                 "you don't have that many shares".to_string(),
@@ -1011,29 +1013,28 @@ impl Game {
         };
         if n == 0 {
             bail!(ErrorKind::InvalidInput(
-                "you must specify an amount to trade greater than 0".to_string(),
+                "you must specify an amount to trade greater than 0"
+                    .to_string(),
             ));
         }
         if n % 2 != 0 {
             bail!(ErrorKind::InvalidInput(
-                "you can only trade multiples of 2, trades are 2-for-1".to_string(),
+                "you can only trade multiples of 2, trades are 2-for-1"
+                    .to_string(),
             ));
         }
-        let corp_shares = self.players[player]
-            .shares
-            .get(&corp)
-            .cloned()
-            .expect("could not get player shares");
+        let corp_shares = self.players[player].shares.get(&corp).cloned().expect(
+            "could not get player shares",
+        );
         if corp_shares < n {
             bail!(ErrorKind::InvalidInput(
                 format!("you only have {} {}", corp_shares, corp),
             ));
         }
         let receive = n / 2;
-        let into_shares = self.shares
-            .get(&into)
-            .cloned()
-            .expect("could not get into shares");
+        let into_shares = self.shares.get(&into).cloned().expect(
+            "could not get into shares",
+        );
         if receive > into_shares {
             bail!(ErrorKind::InvalidInput(
                 format!("{} only has {} remaining", into, into_shares),
@@ -1063,9 +1064,9 @@ impl Game {
     }
 
     fn take_shares(&mut self, player: usize, n: usize, corp: &Corp) -> Result<()> {
-        let corp_shares = *self.shares
-            .get(corp)
-            .expect("could not get corp share count");
+        let corp_shares = *self.shares.get(corp).expect(
+            "could not get corp share count",
+        );
         if corp_shares < n {
             bail!(ErrorKind::InvalidInput(
                 format!("{} only has {} left", corp, corp_shares),
@@ -1079,10 +1080,9 @@ impl Game {
     }
 
     fn return_shares(&mut self, player: usize, n: usize, corp: &Corp) -> Result<()> {
-        let player_shares = *self.players[player]
-            .shares
-            .get(corp)
-            .expect("could not get player share count");
+        let player_shares = *self.players[player].shares.get(corp).expect(
+            "could not get player share count",
+        );
         if player_shares < n {
             bail!(ErrorKind::InvalidInput(
                 format!("only has {} left", player_shares),
@@ -1098,15 +1098,31 @@ impl Game {
     pub fn handle_keep_command(&mut self, player: usize) -> Result<Vec<Log>> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
-        match self.phase {
-            Phase::SellOrTrade { .. } => {}
+        let corp = match self.phase {
+            Phase::SellOrTrade { corp, .. } => corp,
             _ => {
                 bail!(ErrorKind::InvalidInput(
                     "not currently in a sell or trade phase".to_string(),
                 ))
             }
-        }
-        self.next_player_sell_trade()
+        };
+        let mut logs: Vec<Log> = vec![
+            Log::public(vec![
+                N::Player(player),
+                N::text(" kept "),
+                N::Bold(vec![
+                    N::text(format!(
+                        "{} ",
+                        *self.players[player].shares.entry(corp).or_insert(
+                            0,
+                        )
+                    )),
+                ]),
+                corp.render(),
+            ]),
+        ];
+        logs.extend(self.next_player_sell_trade()?);
+        Ok(logs)
     }
 
     pub fn handle_end_command(&mut self, player: usize) -> Result<Vec<Log>> {
@@ -1123,7 +1139,7 @@ impl Game {
                 N::Bold(vec![
                     N::Player(player),
                     N::text(
-                        " triggered the end of the game at the end of their turn",
+                        " triggered the end of the game at the end of their turn"
                     ),
                 ]),
             ]),
@@ -1234,8 +1250,9 @@ mod tests {
                            .0.
                            ..."
             .into();
-        g.command(0, "play b2", &players)
-            .expect("expected playing tile to work");
+        g.command(0, "play b2", &players).expect(
+            "expected playing tile to work",
+        );
         assert_eq!(
             g.board,
             "...
@@ -1252,10 +1269,12 @@ mod tests {
                            #0.
                            ..."
             .into();
-        g.command(0, "play b2", &players)
-            .expect("expected playing tile to work");
-        g.command(0, "found fe", &players)
-            .expect("expected founding to work");
+        g.command(0, "play b2", &players).expect(
+            "expected playing tile to work",
+        );
+        g.command(0, "found fe", &players).expect(
+            "expected founding to work",
+        );
         assert_eq!(
             g.board,
             "...
@@ -1274,21 +1293,26 @@ mod tests {
             .into();
         g.players[0].shares.insert(Corp::American, 9);
         g.players[1].shares.insert(Corp::American, 8);
-        g.command(0, "play a3", &players)
-            .expect("expected 'play a3' to work");
-        g.command(0, "merge am into fe", &players)
-            .expect("expected 'merge am into fe' to work");
+        g.command(0, "play a3", &players).expect(
+            "expected 'play a3' to work",
+        );
+        g.command(0, "merge am into fe", &players).expect(
+            "expected 'merge am into fe' to work",
+        );
         assert_eq!(STARTING_MONEY + 3000, g.players[0].money);
         assert_eq!(STARTING_MONEY + 1500, g.players[1].money);
-        g.command(0, "trade 8", &players)
-            .expect("expected 'trade 8' to work");
-        g.command(0, "sell 1", &players)
-            .expect("expected 'sell 1' to work");
+        g.command(0, "trade 8", &players).expect(
+            "expected 'trade 8' to work",
+        );
+        g.command(0, "sell 1", &players).expect(
+            "expected 'sell 1' to work",
+        );
         assert_eq!(Some(&0), g.players[0].shares.get(&Corp::American));
         assert_eq!(Some(&4), g.players[0].shares.get(&Corp::Festival));
         assert_eq!(STARTING_MONEY + 3300, g.players[0].money);
-        g.command(1, "sell 8", &players)
-            .expect("expected 'sell 8' to work");
+        g.command(1, "sell 8", &players).expect(
+            "expected 'sell 8' to work",
+        );
         assert_eq!(Some(&0), g.players[1].shares.get(&Corp::American));
         assert_eq!(STARTING_MONEY + 3900, g.players[1].money);
         assert_eq!(

@@ -53,10 +53,9 @@ impl Game {
                 }
                 Phase::SellOrTrade { player, corp, .. } => {
                     parsers.push(Box::new(self.sell_parser(player, corp)));
-                    if self.players[player]
-                        .shares
-                        .get(&corp)
-                        .expect("could not get player shares") >= &2
+                    if self.players[player].shares.get(&corp).expect(
+                        "could not get player shares",
+                    ) >= &2
                     {
                         parsers.push(Box::new(self.trade_parser(player, corp)));
                     }
