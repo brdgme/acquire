@@ -78,7 +78,7 @@ impl PubState {
                     .iter()
                     .map(|h| (A::Left, vec![N::Bold(vec![N::text(*h)])]))
                     .collect::<Row>(),
-                ROW_PAD
+                ROW_PAD,
             ),
         ];
         rows.extend(
@@ -115,9 +115,9 @@ impl PubState {
         let mut rows: Vec<Row> = vec![self.player_header()];
         let num_players = self.players.len();
         for p_offset in 0..num_players {
-            let p = player.map(|p| (p + p_offset) % num_players).unwrap_or(
-                p_offset,
-            );
+            let p = player
+                .map(|p| (p + p_offset) % num_players)
+                .unwrap_or(p_offset);
             rows.push(self.player_row(p));
         }
         N::Table(rows)
@@ -139,7 +139,7 @@ impl PubState {
             (A::Left, vec![N::Player(player)]),
             (
                 A::Left,
-                vec![N::text(format!("${}", self.players[player].money))]
+                vec![N::text(format!("${}", self.players[player].money))],
             ),
         ];
         for c in Corp::iter() {
@@ -165,7 +165,7 @@ fn tile_background(c: Color) -> N {
                 repeat(repeat(" ").take(TILE_WIDTH).collect::<String>())
                     .take(TILE_HEIGHT)
                     .collect::<Vec<String>>()
-                    .join("\n")
+                    .join("\n"),
             ),
         ],
     )
@@ -187,9 +187,9 @@ fn corp_main_text_thin(c: &Corp, size: usize) -> Vec<N> {
                 N::Align(
                     A::Center,
                     TILE_WIDTH,
-                    vec![N::text(format!("{}\n${}", c.abbrev(), c.value(size)))]
+                    vec![N::text(format!("{}\n${}", c.abbrev(), c.value(size)))],
                 ),
-            ]
+            ],
         ),
     ]
 }
@@ -204,9 +204,9 @@ fn corp_main_text_wide(c: &Corp, size: usize) -> Vec<N> {
                 N::Align(
                     A::Center,
                     TILE_WIDTH * 2,
-                    vec![N::text(format!("{}\n${}", c_name, c.value(size)))]
+                    vec![N::text(format!("{}\n${}", c_name, c.value(size)))],
                 ),
-            ]
+            ],
         ),
     ]
 }
@@ -231,9 +231,9 @@ impl Board {
                                 vec![
                                     N::Fg(
                                         UNAVAILABLE_LOC_TEXT_COLOR.into(),
-                                        vec![N::text(l.name())]
+                                        vec![N::text(l.name())],
                                     ),
-                                ]
+                                ],
                             ),
                         ],
                     ));
@@ -272,10 +272,10 @@ impl Board {
                             N::Bold(vec![
                                 N::Fg(
                                     AVAILABLE_LOC_BG.inv().mono().into(),
-                                    vec![N::text(l.name())]
+                                    vec![N::text(l.name())],
                                 ),
                             ]),
-                        ]
+                        ],
                     ),
                 ],
             ));
@@ -360,7 +360,7 @@ impl CanEnd {
             vec![
                 match *self {
                     CanEnd::Triggered => N::Bold(
-                        vec![N::text("The game will end at the end of this turn")]
+                        vec![N::text("The game will end at the end of this turn")],
                     ),
                     CanEnd::Finished => N::Bold(vec![N::text("The game has ended")]),
                     CanEnd::True => N::Bold(vec![N::text("The end of the game can be triggered")]),

@@ -38,9 +38,8 @@ impl Board {
         let len = self.0.len();
         let at_u = at.into();
         if len <= at_u {
-            self.0.extend(
-                iter::repeat(Tile::default()).take(at_u - len + 1),
-            )
+            self.0
+                .extend(iter::repeat(Tile::default()).take(at_u - len + 1))
         }
         self.0[at_u] = t;
     }
@@ -142,8 +141,7 @@ impl Board {
         }
         if self.loc_founds(loc) && self.available_corps().is_empty() {
             bail!(ErrorKind::InvalidInput(
-                "there are no available unincorporated corporations"
-                    .to_string(),
+                "there are no available unincorporated corporations".to_string(),
             ));
         }
         Ok(())
