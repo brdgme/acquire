@@ -19,6 +19,7 @@ use rand::{thread_rng, Rng};
 use brdgme_game::{Gamer, Log, Status, CommandResponse};
 use brdgme_game::errors::*;
 use brdgme_game::command::Spec as CommandSpec;
+use brdgme_game::game::gen_placings;
 use brdgme_markup::Node as N;
 
 use std::collections::HashMap;
@@ -203,7 +204,7 @@ able to win the game."
     fn status(&self) -> Status {
         if self.finished {
             Status::Finished {
-                winners: self.winners(),
+                placings: self.placings(),
                 stats: vec![],
             }
         } else {
@@ -214,19 +215,14 @@ able to win the game."
         }
     }
 
-    fn winners(&self) -> Vec<usize> {
-        let mut money: usize = 0;
-        let mut winners: Vec<usize> = vec![];
-        for (player, p_state) in self.players.iter().enumerate() {
-            if p_state.money > money {
-                money = p_state.money;
-                winners = vec![];
-            }
-            if p_state.money == money {
-                winners.push(player);
-            }
-        }
-        winners
+    fn placings(&self) -> Vec<usize> {
+        gen_placings(
+            self.players
+                .iter()
+                .map(|p| vec![p.money as i32])
+                .collect::<Vec<Vec<i32>>>()
+                .as_ref(),
+        )
     }
 
     fn pub_state(&self, player: Option<usize>) -> Self::PubState {
