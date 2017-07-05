@@ -66,7 +66,7 @@ impl Renderer for PubState {
 }
 
 static CORP_TABLE_HEADER: &'static [&'static str] =
-    &["Corporation", "Size", "Value", "Shares", "Major", "Minor"];
+    &["Corporation", "Size", "Value", "Shares", "Minor", "Major"];
 
 const ROW_PAD: &'static str = "   ";
 
