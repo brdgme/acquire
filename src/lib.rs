@@ -290,7 +290,7 @@ able to win the game."
 }
 
 #[derive(Debug, PartialEq)]
-struct CanEndFalse {
+pub struct CanEndFalse {
     largest: usize,
     has_safe: bool,
     unsafe_count: usize,
@@ -415,9 +415,7 @@ impl Game {
                 logs.push(Log::public(vec![
                     n_corp.render(),
                     N::text(" increased in size to "),
-                    N::Bold(
-                        vec![N::text(format!("{}", self.board.corp_size(n_corp)))],
-                    ),
+                    N::Bold(vec![N::text(format!("{}", self.board.corp_size(n_corp)))]),
                 ]));
                 self.buy_phase(player);
             }
@@ -815,8 +813,8 @@ impl Game {
         }
         if minor_len > 0 {
             // Round up to the nearest 100
-            let minor_per = (minor_bonus / BONUS_ROUNDING + minor_len - 1) / minor_len *
-                BONUS_ROUNDING;
+            let minor_per =
+                (minor_bonus / BONUS_ROUNDING + minor_len - 1) / minor_len * BONUS_ROUNDING;
             logs.push(Game::bonus_log(&minor, "Minor", minor_per));
             for p in &minor {
                 if *p == DUMMY_PLAYER_OFFSET {
@@ -1037,8 +1035,8 @@ impl Game {
         }
         self.players[player].stats.trades += receive;
         self.players[player].stats.trade_loss_sum += n * corp.value(self.board.corp_size(&corp));
-        self.players[player].stats.trade_gain_sum += receive *
-            into.value(self.board.corp_size(&into));
+        self.players[player].stats.trade_gain_sum +=
+            receive * into.value(self.board.corp_size(&into));
         self.return_shares(player, n, &corp)?;
         self.take_shares(player, receive, &into)?;
         let mut logs = vec![
@@ -1132,9 +1130,7 @@ impl Game {
             Log::public(vec![
                 N::Bold(vec![
                     N::Player(player),
-                    N::text(
-                        " triggered the end of the game at the end of their turn",
-                    ),
+                    N::text(" triggered the end of the game at the end of their turn"),
                 ]),
             ]),
         ])
