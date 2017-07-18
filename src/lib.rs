@@ -83,7 +83,7 @@ pub struct PubState {
 }
 
 impl PubState {
-    fn can_end(&self) -> CanEnd {
+    pub fn can_end(&self) -> CanEnd {
         if self.finished {
             return CanEnd::Finished;
         }
@@ -303,7 +303,7 @@ impl Into<CanEnd> for CanEndFalse {
 }
 
 #[derive(Debug, PartialEq)]
-enum CanEnd {
+pub enum CanEnd {
     Triggered,
     Finished,
     True,
