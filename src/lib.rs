@@ -73,7 +73,6 @@ impl Default for Phase {
 #[derive(Default, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct PubState {
     pub phase: Phase,
-    pub priv_state: Option<PrivState>,
     pub players: Vec<PubPlayer>,
     pub board: Board,
     pub shares: HashMap<Corp, usize>,
@@ -117,8 +116,9 @@ impl PubState {
 }
 
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct PrivState {
-    pub id: usize,
+pub struct PlayerState {
+    pub public: PubState,
+    pub player: usize,
     pub tiles: Vec<Loc>,
 }
 
@@ -149,6 +149,7 @@ impl Default for Game {
 
 impl Gamer for Game {
     type PubState = PubState;
+    type PlayerState = PlayerState;
 
     fn new(players: usize) -> Result<(Self, Vec<Log>)> {
         let mut g = Game::default();
@@ -225,15 +226,15 @@ able to win the game."
         )
     }
 
-    fn pub_state(&self, player: Option<usize>) -> Self::PubState {
-        PubState {
-            priv_state: player.map(|p| {
-                PrivState {
-                    id: p,
-                    tiles: self.players[p].tiles.to_owned(),
-                }
-            }),
-            ..self.to_owned().into()
+    fn pub_state(&self) -> Self::PubState {
+        self.to_owned().into()
+    }
+
+    fn player_state(&self, player: usize) -> Self::PlayerState {
+        PlayerState {
+            public: self.pub_state(),
+            player,
+            tiles: self.players[player].tiles.to_owned(),
         }
     }
 
@@ -1120,7 +1121,7 @@ impl Game {
     pub fn handle_end_command(&mut self, player: usize) -> Result<Vec<Log>> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
-        if self.pub_state(None).can_end() != CanEnd::True {
+        if self.pub_state().can_end() != CanEnd::True {
             bail!(ErrorKind::InvalidInput(
                 "can't end the game at the moment".to_string(),
             ));
@@ -1172,7 +1173,6 @@ impl Into<PubState> for Game {
     fn into(self) -> PubState {
         PubState {
             phase: self.phase,
-            priv_state: None,
             players: self.players.iter().map(|v| v.to_owned().into()).collect(),
             board: self.board,
             shares: self.shares,

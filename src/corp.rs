@@ -83,10 +83,7 @@ impl Corp {
 
     pub fn render(&self) -> N {
         N::Bold(vec![
-            N::Fg(
-                self.color().into(),
-                vec![N::text(format!("{}", self))],
-            ),
+            N::Fg(self.color().into(), vec![N::text(format!("{}", self))]),
         ])
     }
 

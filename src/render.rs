@@ -2,6 +2,7 @@ use brdgme_game::Renderer;
 use brdgme_markup::{Node as N, Align as A, Row, row_pad};
 use brdgme_color::*;
 
+use PlayerState;
 use PubState;
 use board::{self, Board, Loc, Tile};
 use corp::{Corp, MINOR_MULT, MAJOR_MULT, GAME_END_SIZE};
@@ -43,25 +44,29 @@ static AVAILABLE_LOC_BG: Color = Color {
     b: 208,
 };
 
+fn render(pub_state: &PubState, player: Option<usize>, tiles: &[Loc]) -> Vec<N> {
+    vec![
+        N::Table(vec![
+            vec![(A::Center, vec![pub_state.board.render(tiles)])],
+            vec![],
+            vec![(A::Center, vec![pub_state.can_end().render_end_text()])],
+            vec![],
+            vec![(A::Center, vec![pub_state.corp_table()])],
+            vec![],
+            vec![(A::Center, vec![pub_state.player_table(player)])],
+        ]),
+    ]
+}
+
 impl Renderer for PubState {
     fn render(&self) -> Vec<N> {
-        let (tiles, player) = self.clone()
-            .priv_state
-            .map(|ps| (ps.tiles, Some(ps.id)))
-            .unwrap_or_else(|| (vec![], None));
-        vec![
-            N::Table(vec![
-                vec![(A::Center, vec![self.board.render(&tiles)])],
-                vec![],
-                vec![
-                    (A::Center, vec![self.can_end().render_end_text()]),
-                ],
-                vec![],
-                vec![(A::Center, vec![self.corp_table()])],
-                vec![],
-                vec![(A::Center, vec![self.player_table(player)])],
-            ]),
-        ]
+        render(self, None, &[])
+    }
+}
+
+impl Renderer for PlayerState {
+    fn render(&self) -> Vec<N> {
+        render(&self.public, Some(self.player), &self.tiles)
     }
 }
 
