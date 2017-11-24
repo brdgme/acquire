@@ -1,0 +1,9 @@
+#!/bin/bash
+
+set -euo pipefail
+
+docker run --rm -it -v "$(pwd)":/src brdgme/rust-build
+rm -rf lambda
+mkdir lambda
+cp target/release/cli lambda/game
+curl https://raw.githubusercontent.com/brdgme/lambda/master/index.js > lambda/index.js
