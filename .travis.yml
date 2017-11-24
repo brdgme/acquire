@@ -1,6 +1,4 @@
 sudo: required
-language: rust
-rust: nightly
 services:
 - docker
 script:
