@@ -254,13 +254,10 @@ able to win the game."
             Command::Found(corp) => self.handle_found_command(player, &corp),
             Command::Buy(n, corp) => self.handle_buy_command(player, n, corp),
             Command::Done => self.handle_done_command(player).map(|l| (l, false)),
-            Command::Merge(corp, into) => {
-                self.handle_merge_command(player, &corp, &into)
-                    .map(|l| (l, false))
-            }
-            Command::Sell(n) => self.handle_sell_command(player, n).map(|l| (l, false)),
-            Command::Trade(n) => self.handle_trade_command(player, n).map(|l| (l, false)),
-            Command::Keep => self.handle_keep_command(player).map(|l| (l, true)),
+            Command::Merge(corp, into) => self.handle_merge_command(player, &corp, &into),
+            Command::Sell(n) => self.handle_sell_command(player, n),
+            Command::Trade(n) => self.handle_trade_command(player, n),
+            Command::Keep => self.handle_keep_command(player),
             Command::End => self.handle_end_command(player).map(|l| (l, false)),
         }.map(|(logs, can_undo)| {
             CommandResponse {
@@ -388,6 +385,9 @@ impl Game {
     pub fn handle_play_command(&mut self, player: usize, loc: &Loc) -> Result<(Vec<Log>, bool)> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
+
+        let mut can_undo = true;
+
         if !self.can_play(player) {
             return Err(
                 ErrorKind::InvalidInput("You can't play a tile right now".to_string()).into(),
@@ -452,11 +452,13 @@ impl Game {
                     ));
                 }
                 self.board.set_tile(loc, Tile::Unincorporated);
-                logs.extend(self.choose_merger_phase(player, *loc)?);
+                let (new_logs, new_can_undo) = self.choose_merger_phase(player, *loc)?;
+                logs.extend(new_logs);
+                can_undo = new_can_undo
             }
         }
         self.players[player].tiles.swap_remove(pos);
-        Ok((logs, true))
+        Ok((logs, can_undo))
     }
 
     fn buy_phase(&mut self, player: usize) {
@@ -473,12 +475,12 @@ impl Game {
         }
     }
 
-    fn choose_merger_phase(&mut self, player: usize, loc: Loc) -> Result<Vec<Log>> {
+    fn choose_merger_phase(&mut self, player: usize, loc: Loc) -> Result<(Vec<Log>, bool)> {
         let (from, into) = self.board.merge_candidates(&loc);
         if from.is_empty() {
             // No mergers, go to buy phase.
             self.buy_phase(player);
-            return Ok(vec![]);
+            return Ok((vec![], true));
         }
         // We set the phase as the merge function validates this.
         self.phase = Phase::ChooseMerger {
@@ -490,7 +492,7 @@ impl Game {
             self.handle_merge_command(player, &from[0], &into[0])
         } else {
             // Stay in this phase so the player can choose.
-            Ok(vec![])
+            Ok((vec![], true))
         }
     }
 
@@ -713,9 +715,10 @@ impl Game {
         player: usize,
         from: &Corp,
         into: &Corp,
-    ) -> Result<Vec<Log>> {
+    ) -> Result<(Vec<Log>, bool)> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
+        let mut can_undo = true;
         let at = match self.phase {
             Phase::ChooseMerger { at, .. } => at,
             _ => {
@@ -769,9 +772,12 @@ impl Game {
         };
         if self.players[player].shares.get(from).cloned().unwrap_or(0) == 0 {
             // The player has none of the shares anyway, just skip them.
-            logs.extend(self.next_player_sell_trade()?);
+            let (new_logs, new_can_undo) = self.next_player_sell_trade()?;
+            logs.extend(new_logs);
+            can_undo = new_can_undo;
         }
-        Ok(logs)
+        // Can't undo if it's two player as a dice is rolled.
+        Ok((logs, can_undo && self.players.len() > 2))
     }
 
     fn pay_bonuses(&mut self, corp: &Corp) -> Vec<Log> {
@@ -894,7 +900,7 @@ impl Game {
         }
     }
 
-    fn next_player_sell_trade(&mut self) -> Result<Vec<Log>> {
+    fn next_player_sell_trade(&mut self) -> Result<(Vec<Log>, bool)> {
         let (mut player, corp, into, at, turn_player) = match self.phase {
             Phase::SellOrTrade {
                 player,
@@ -920,10 +926,10 @@ impl Game {
         if self.players[player].shares.get(&corp).cloned().unwrap_or(0) == 0 {
             return self.next_player_sell_trade();
         }
-        Ok(vec![])
+        Ok((vec![], true))
     }
 
-    fn end_sell_trade_phase(&mut self) -> Result<Vec<Log>> {
+    fn end_sell_trade_phase(&mut self) -> Result<(Vec<Log>, bool)> {
         let (corp, into, at, turn_player) = match self.phase {
             Phase::SellOrTrade {
                 corp,
@@ -938,9 +944,10 @@ impl Game {
         self.choose_merger_phase(turn_player, at)
     }
 
-    pub fn handle_sell_command(&mut self, player: usize, n: usize) -> Result<Vec<Log>> {
+    pub fn handle_sell_command(&mut self, player: usize, n: usize) -> Result<(Vec<Log>, bool)> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
+        let mut can_undo = true;
         let corp = match self.phase {
             Phase::SellOrTrade { corp, .. } => corp,
             _ => {
@@ -955,9 +962,11 @@ impl Game {
             .get(&corp)
             .expect("could not get player shares") == 0
         {
-            logs.extend(self.next_player_sell_trade()?);
+            let (new_logs, new_can_undo) = self.next_player_sell_trade()?;
+            logs.extend(new_logs);
+            can_undo = new_can_undo;
         }
-        Ok(logs)
+        Ok((logs, can_undo))
     }
 
     fn sell(&mut self, player: usize, n: usize, corp: &Corp) -> Result<Vec<Log>> {
@@ -992,7 +1001,7 @@ impl Game {
         ])
     }
 
-    pub fn handle_trade_command(&mut self, player: usize, n: usize) -> Result<Vec<Log>> {
+    pub fn handle_trade_command(&mut self, player: usize, n: usize) -> Result<(Vec<Log>, bool)> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
         // Validate
@@ -1034,6 +1043,8 @@ impl Game {
                 format!("{} only has {} remaining", into, into_shares),
             ));
         }
+
+        let mut can_undo = true;
         self.players[player].stats.trades += receive;
         self.players[player].stats.trade_loss_sum += n * corp.value(self.board.corp_size(&corp));
         self.players[player].stats.trade_gain_sum +=
@@ -1052,9 +1063,11 @@ impl Game {
             ]),
         ];
         if n == corp_shares {
-            logs.extend(self.next_player_sell_trade()?);
+            let (new_logs, new_can_undo) = self.next_player_sell_trade()?;
+            logs.extend(new_logs);
+            can_undo = new_can_undo;
         }
-        Ok(logs)
+        Ok((logs, can_undo))
     }
 
     fn take_shares(&mut self, player: usize, n: usize, corp: &Corp) -> Result<()> {
@@ -1090,7 +1103,7 @@ impl Game {
         Ok(())
     }
 
-    pub fn handle_keep_command(&mut self, player: usize) -> Result<Vec<Log>> {
+    pub fn handle_keep_command(&mut self, player: usize) -> Result<(Vec<Log>, bool)> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
         let corp = match self.phase {
@@ -1114,8 +1127,9 @@ impl Game {
                 corp.render(),
             ]),
         ];
-        logs.extend(self.next_player_sell_trade()?);
-        Ok(logs)
+        let (new_logs, can_undo) = self.next_player_sell_trade()?;
+        logs.extend(new_logs);
+        Ok((logs, can_undo))
     }
 
     pub fn handle_end_command(&mut self, player: usize) -> Result<Vec<Log>> {
