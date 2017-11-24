@@ -74,7 +74,7 @@ impl Renderer for PlayerState {
 static CORP_TABLE_HEADER: &'static [&'static str] =
     &["Corporation", "Size", "Value", "Shares", "Minor", "Major"];
 
-const ROW_PAD: &'static str = "   ";
+const ROW_PAD: &str = "   ";
 
 impl PubState {
     fn corp_table(&self) -> N {
@@ -269,7 +269,7 @@ impl Board {
         }
         // Player tiles.
         for t in player_tiles {
-            let l = Loc::from(*t);
+            let l = *t;
             let render_x = l.col * TILE_WIDTH;
             let render_y = l.row * TILE_HEIGHT;
             layers.push((
