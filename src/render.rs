@@ -1,11 +1,11 @@
 use brdgme_game::Renderer;
-use brdgme_markup::{Node as N, Align as A, Row, row_pad};
+use brdgme_markup::{row_pad, Align as A, Node as N, Row};
 use brdgme_color::*;
 
 use PlayerState;
 use PubState;
 use board::{self, Board, Loc, Tile};
-use corp::{Corp, MINOR_MULT, MAJOR_MULT, GAME_END_SIZE};
+use corp::{Corp, GAME_END_SIZE, MAJOR_MULT, MINOR_MULT};
 use CanEnd;
 use CanEndFalse;
 
@@ -50,6 +50,7 @@ fn render(pub_state: &PubState, player: Option<usize>, tiles: &[Loc]) -> Vec<N> 
             vec![(A::Center, vec![pub_state.board.render(tiles)])],
             vec![],
             vec![(A::Center, vec![pub_state.can_end().render_end_text()])],
+            vec![(A::Center, vec![pub_state.render_remaining_tiles_text()])],
             vec![],
             vec![(A::Center, vec![pub_state.corp_table()])],
             vec![],
@@ -114,6 +115,16 @@ impl PubState {
                 .collect::<Vec<Row>>(),
         );
         N::Table(rows)
+    }
+
+    fn render_remaining_tiles_text(&self) -> N {
+        N::Fg(
+            GREY.into(),
+            vec![
+                N::text("Draw tiles remaining: "),
+                N::Bold(vec![N::text(format!("{}", self.remaining_tiles))]),
+            ],
+        )
     }
 
     fn player_table(&self, player: Option<usize>) -> N {
@@ -311,14 +322,12 @@ impl Board {
                                                 None
                                             }
                                         }
-                                        _ => {
-                                            if let Some(s) = start {
-                                                start = None;
-                                                Some((s, row, col - s))
-                                            } else {
-                                                None
-                                            }
-                                        }
+                                        _ => if let Some(s) = start {
+                                            start = None;
+                                            Some((s, row, col - s))
+                                        } else {
+                                            None
+                                        },
                                     }
                                 })
                                 .collect::<Vec<(usize, usize, usize)>>()
@@ -364,9 +373,9 @@ impl CanEnd {
             GREY.into(),
             vec![
                 match *self {
-                    CanEnd::Triggered => N::Bold(
-                        vec![N::text("The game will end at the end of this turn")],
-                    ),
+                    CanEnd::Triggered => {
+                        N::Bold(vec![N::text("The game will end at the end of this turn")])
+                    }
                     CanEnd::Finished => N::Bold(vec![N::text("The game has ended")]),
                     CanEnd::True => N::Bold(vec![N::text("The end of the game can be triggered")]),
                     CanEnd::False(ref caf) => caf.render_end_text(),
