@@ -62,6 +62,16 @@ impl Phase {
             Phase::SellOrTrade { player, .. } => player,
         }
     }
+
+    pub fn main_turn_player(&self) -> usize {
+        match *self {
+            Phase::Play(player) |
+            Phase::Found { player, .. } |
+            Phase::Buy { player, .. } |
+            Phase::ChooseMerger { player, .. } => player,
+            Phase::SellOrTrade { turn_player, .. } => turn_player,
+        }
+    }
 }
 
 impl Default for Phase {
@@ -1134,7 +1144,11 @@ impl Game {
 
     pub fn handle_end_command(&mut self, player: usize) -> Result<Vec<Log>> {
         self.assert_not_finished()?;
-        self.assert_player_turn(player)?;
+        if self.phase.main_turn_player() != player {
+            bail!(ErrorKind::InvalidInput(
+                "can't end the game during another player's turn".to_string(),
+            ));
+        }
         if self.pub_state().can_end() != CanEnd::True {
             bail!(ErrorKind::InvalidInput(
                 "can't end the game at the moment".to_string(),
@@ -1153,6 +1167,10 @@ impl Game {
 
     fn player_score(&self, player: usize) -> usize {
         self.players[player].money
+    }
+
+    fn player_can_end(&self, player: usize) -> bool {
+        self.phase.main_turn_player() == player && self.pub_state().can_end() == CanEnd::True
     }
 }
 

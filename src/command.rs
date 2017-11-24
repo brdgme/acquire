@@ -5,7 +5,6 @@ use board::Loc;
 use corp::{Corp, CORPS};
 use Game;
 use Phase;
-use CanEnd;
 
 use std::usize;
 
@@ -63,7 +62,7 @@ impl Game {
                     parsers.push(Box::new(keep_parser()));
                 }
             }
-            if self.pub_state().can_end() == CanEnd::True {
+            if self.player_can_end(player) {
                 parsers.push(Box::new(end_parser()));
             }
         }
