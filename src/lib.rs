@@ -1,12 +1,11 @@
 #![feature(conservative_impl_trait)]
+extern crate failure;
 extern crate rand;
 #[macro_use]
 extern crate serde_derive;
-#[macro_use]
-extern crate error_chain;
 
-extern crate brdgme_game;
 extern crate brdgme_color;
+extern crate brdgme_game;
 extern crate brdgme_markup;
 
 pub mod corp;
@@ -16,8 +15,8 @@ mod command;
 mod stats;
 
 use rand::{thread_rng, Rng};
-use brdgme_game::{Gamer, Log, Status, CommandResponse};
-use brdgme_game::errors::*;
+use brdgme_game::{CommandResponse, Gamer, Log, Status};
+use brdgme_game::errors::GameError;
 use brdgme_game::command::Spec as CommandSpec;
 use brdgme_game::game::gen_placings;
 use brdgme_markup::Node as N;
@@ -40,9 +39,18 @@ pub const DUMMY_PLAYER_OFFSET: usize = 999;
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum Phase {
     Play(usize),
-    Found { player: usize, at: Loc },
-    Buy { player: usize, remaining: usize },
-    ChooseMerger { player: usize, at: Loc },
+    Found {
+        player: usize,
+        at: Loc,
+    },
+    Buy {
+        player: usize,
+        remaining: usize,
+    },
+    ChooseMerger {
+        player: usize,
+        at: Loc,
+    },
     SellOrTrade {
         player: usize,
         corp: Corp,
@@ -55,20 +63,20 @@ pub enum Phase {
 impl Phase {
     pub fn whose_turn(&self) -> usize {
         match *self {
-            Phase::Play(player) |
-            Phase::Found { player, .. } |
-            Phase::Buy { player, .. } |
-            Phase::ChooseMerger { player, .. } |
-            Phase::SellOrTrade { player, .. } => player,
+            Phase::Play(player)
+            | Phase::Found { player, .. }
+            | Phase::Buy { player, .. }
+            | Phase::ChooseMerger { player, .. }
+            | Phase::SellOrTrade { player, .. } => player,
         }
     }
 
     pub fn main_turn_player(&self) -> usize {
         match *self {
-            Phase::Play(player) |
-            Phase::Found { player, .. } |
-            Phase::Buy { player, .. } |
-            Phase::ChooseMerger { player, .. } => player,
+            Phase::Play(player)
+            | Phase::Found { player, .. }
+            | Phase::Buy { player, .. }
+            | Phase::ChooseMerger { player, .. } => player,
             Phase::SellOrTrade { turn_player, .. } => turn_player,
         }
     }
@@ -161,12 +169,14 @@ impl Gamer for Game {
     type PubState = PubState;
     type PlayerState = PlayerState;
 
-    fn new(players: usize) -> Result<(Self, Vec<Log>)> {
+    fn new(players: usize) -> Result<(Self, Vec<Log>), GameError> {
         let mut g = Game::default();
         if players < MIN_PLAYERS || players > MAX_PLAYERS {
-            return Err(
-                ErrorKind::PlayerCount(MIN_PLAYERS, MAX_PLAYERS, players).into(),
-            );
+            return Err(GameError::PlayerCount {
+                min: MIN_PLAYERS,
+                max: MAX_PLAYERS,
+                given: players,
+            });
         }
 
         // Shuffle up the draw tiles.
@@ -253,11 +263,12 @@ able to win the game."
         player: usize,
         input: &str,
         players: &[String],
-    ) -> Result<CommandResponse> {
-        let parser = self.command_parser(player)
-            .ok_or_else::<Error, _>(|| {
-                ErrorKind::InvalidInput("not your turn".to_string()).into()
-            })?;
+    ) -> Result<CommandResponse, GameError> {
+        let parser = self.command_parser(player).ok_or_else::<GameError, _>(|| {
+            GameError::InvalidInput {
+                message: "not your turn".to_string(),
+            }
+        })?;
         let output = parser.parse(input, players)?;
         match output.value {
             Command::Play(loc) => self.handle_play_command(player, &loc),
@@ -332,7 +343,7 @@ impl Game {
         }
     }
 
-    fn draw_replacement_tiles(&mut self, player: usize) -> Result<(Vec<Log>, bool)> {
+    fn draw_replacement_tiles(&mut self, player: usize) -> Result<(Vec<Log>, bool), GameError> {
         // Discard permanently unplayable tiles.
         let (mut keep, discard): (Vec<Loc>, Vec<Loc>) = self.players[player]
             .tiles
@@ -392,23 +403,27 @@ impl Game {
         Ok((logs, false))
     }
 
-    pub fn handle_play_command(&mut self, player: usize, loc: &Loc) -> Result<(Vec<Log>, bool)> {
+    pub fn handle_play_command(
+        &mut self,
+        player: usize,
+        loc: &Loc,
+    ) -> Result<(Vec<Log>, bool), GameError> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
 
         let mut can_undo = true;
 
         if !self.can_play(player) {
-            return Err(
-                ErrorKind::InvalidInput("You can't play a tile right now".to_string()).into(),
-            );
+            return Err(GameError::InvalidInput {
+                message: "You can't play a tile right now".to_string(),
+            });
         }
         let pos = match self.players[player].tiles.iter().position(|l| l == loc) {
             Some(p) => p,
             None => {
-                bail!(ErrorKind::InvalidInput(
-                    "You don't have that tile".to_string(),
-                ))
+                return Err(GameError::InvalidInput {
+                    message: "You don't have that tile".to_string(),
+                })
             }
         };
         let mut logs: Vec<Log> = vec![
@@ -436,9 +451,9 @@ impl Game {
                     .any(|n_loc| self.board.get_tile(n_loc) == Tile::Unincorporated);
                 if has_unincorporated_neighbour {
                     if self.board.available_corps().is_empty() {
-                        bail!(ErrorKind::InvalidInput(
-                            "there aren't any corporations available to found".to_string(),
-                        ));
+                        return Err(GameError::InvalidInput {
+                            message: "there aren't any corporations available to found".to_string(),
+                        });
                     }
                     self.found_phase(player, loc.to_owned());
                 } else {
@@ -448,18 +463,17 @@ impl Game {
                 self.board.set_tile(loc, Tile::Unincorporated);
             }
             _ => {
-                let safe_corp_count = neighbouring_corps.iter().fold(
-                    0,
-                    |acc, corp| if self.board.corp_is_safe(corp) {
+                let safe_corp_count = neighbouring_corps.iter().fold(0, |acc, corp| {
+                    if self.board.corp_is_safe(corp) {
                         acc + 1
                     } else {
                         acc
-                    },
-                );
+                    }
+                });
                 if safe_corp_count > 1 {
-                    bail!(ErrorKind::InvalidInput(
-                        "can't merge safe corporations together".to_string(),
-                    ));
+                    return Err(GameError::InvalidInput {
+                        message: "can't merge safe corporations together".to_string(),
+                    });
                 }
                 self.board.set_tile(loc, Tile::Unincorporated);
                 let (new_logs, new_can_undo) = self.choose_merger_phase(player, *loc)?;
@@ -485,7 +499,11 @@ impl Game {
         }
     }
 
-    fn choose_merger_phase(&mut self, player: usize, loc: Loc) -> Result<(Vec<Log>, bool)> {
+    fn choose_merger_phase(
+        &mut self,
+        player: usize,
+        loc: Loc,
+    ) -> Result<(Vec<Log>, bool), GameError> {
         let (from, into) = self.board.merge_candidates(&loc);
         if from.is_empty() {
             // No mergers, go to buy phase.
@@ -506,21 +524,25 @@ impl Game {
         }
     }
 
-    pub fn handle_found_command(&mut self, player: usize, corp: &Corp) -> Result<(Vec<Log>, bool)> {
+    pub fn handle_found_command(
+        &mut self,
+        player: usize,
+        corp: &Corp,
+    ) -> Result<(Vec<Log>, bool), GameError> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
         let at = match self.phase {
             Phase::Found { at, .. } => at,
             _ => {
-                bail!(ErrorKind::InvalidInput(
-                    "not able to found a corporation at the moment".to_string(),
-                ))
+                return Err(GameError::InvalidInput {
+                    message: "not able to found a corporation at the moment".to_string(),
+                })
             }
         };
         if !self.board.available_corps().contains(corp) {
-            bail!(ErrorKind::InvalidInput(
-                format!("{} is already on the board", corp),
-            ));
+            return Err(GameError::InvalidInput {
+                message: format!("{} is already on the board", corp),
+            });
         }
         self.players[player].stats.founds.push(*corp);
         self.board.extend_corp(&at, corp);
@@ -549,37 +571,39 @@ impl Game {
         player: usize,
         n: usize,
         corp: Corp,
-    ) -> Result<(Vec<Log>, bool)> {
+    ) -> Result<(Vec<Log>, bool), GameError> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
         if n == 0 {
-            bail!(ErrorKind::InvalidInput("can't buy 0 shares".to_string()));
+            return Err(GameError::InvalidInput {
+                message: "can't buy 0 shares".to_string(),
+            });
         }
         match self.phase {
             Phase::Buy { remaining, .. } => {
                 if n > remaining {
-                    bail!(ErrorKind::InvalidInput(
-                        format!("can only buy {} more", remaining),
-                    ));
+                    return Err(GameError::InvalidInput {
+                        message: format!("can only buy {} more", remaining),
+                    });
                 }
                 let corp_size = self.board.corp_size(&corp);
                 if corp_size == 0 {
-                    bail!(ErrorKind::InvalidInput(
-                        format!("{} is not on the board", corp),
-                    ));
+                    return Err(GameError::InvalidInput {
+                        message: format!("{} is not on the board", corp),
+                    });
                 }
                 let corp_shares = self.shares.get(&corp).cloned().unwrap_or(0);
                 if n > corp_shares {
-                    bail!(ErrorKind::InvalidInput(
-                        format!("{} has {} left", corp, corp_shares),
-                    ));
+                    return Err(GameError::InvalidInput {
+                        message: format!("{} has {} left", corp, corp_shares),
+                    });
                 }
                 let price = corp.value(corp_size) * n;
                 let player_money = self.players[player].money;
                 if price > player_money {
-                    bail!(ErrorKind::InvalidInput(
-                        format!("costs ${}, you only have ${}", price, player_money),
-                    ));
+                    return Err(GameError::InvalidInput {
+                        message: format!("costs ${}, you only have ${}", price, player_money),
+                    });
                 }
                 self.players[player].money -= price;
                 self.take_shares(player, n, &corp)?;
@@ -604,28 +628,24 @@ impl Game {
                     true,
                 ))
             }
-            _ => {
-                bail!(ErrorKind::InvalidInput(
-                    "can't buy shares at the moment".to_string(),
-                ))
-            }
+            _ => Err(GameError::InvalidInput {
+                message: "can't buy shares at the moment".to_string(),
+            }),
         }
     }
 
-    pub fn handle_done_command(&mut self, player: usize) -> Result<Vec<Log>> {
+    pub fn handle_done_command(&mut self, player: usize) -> Result<Vec<Log>, GameError> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
         match self.phase {
             Phase::Buy { .. } => self.end_turn(),
-            _ => {
-                bail!(ErrorKind::InvalidInput(
-                    "can't end your turn at the moment".to_string(),
-                ))
-            }
+            _ => Err(GameError::InvalidInput {
+                message: "can't end your turn at the moment".to_string(),
+            }),
         }
     }
 
-    fn end(&mut self) -> Result<Vec<Log>> {
+    fn end(&mut self) -> Result<Vec<Log>, GameError> {
         let mut logs: Vec<Log> = vec![];
         self.finished = true;
         // Pay all bonuses on the board.
@@ -653,7 +673,7 @@ impl Game {
         Ok(logs)
     }
 
-    fn start_turn(&mut self, player: usize) -> Result<Vec<Log>> {
+    fn start_turn(&mut self, player: usize) -> Result<Vec<Log>, GameError> {
         // If all tiles are unplayable, we get new tiles.
         if self.players[player]
             .tiles
@@ -671,13 +691,11 @@ impl Game {
         Ok(vec![])
     }
 
-    fn redraw_hand(&mut self, player: usize) -> Result<(Vec<Log>, bool)> {
+    fn redraw_hand(&mut self, player: usize) -> Result<(Vec<Log>, bool), GameError> {
         let mut logs: Vec<Log> = vec![
             Log::public(vec![
                 N::Player(player),
-                N::text(
-                    " has no playable tiles and will draw a new hand, discarded ",
-                ),
+                N::text(" has no playable tiles and will draw a new hand, discarded "),
                 N::Group(
                     self.players[player]
                         .tiles
@@ -702,7 +720,7 @@ impl Game {
         Ok((logs, has_finished))
     }
 
-    fn end_turn(&mut self) -> Result<Vec<Log>> {
+    fn end_turn(&mut self) -> Result<Vec<Log>, GameError> {
         if self.last_turn {
             // End the game
             return self.end();
@@ -725,38 +743,38 @@ impl Game {
         player: usize,
         from: &Corp,
         into: &Corp,
-    ) -> Result<(Vec<Log>, bool)> {
+    ) -> Result<(Vec<Log>, bool), GameError> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
         let mut can_undo = true;
         let at = match self.phase {
             Phase::ChooseMerger { at, .. } => at,
             _ => {
-                bail!(ErrorKind::InvalidInput(
-                    "can't choose a merger at the moment".to_string(),
-                ))
+                return Err(GameError::InvalidInput {
+                    message: "can't choose a merger at the moment".to_string(),
+                })
             }
         };
         if from == into {
-            bail!(ErrorKind::InvalidInput(
-                "can't merge the same corp into itself".to_string(),
-            ));
+            return Err(GameError::InvalidInput {
+                message: "can't merge the same corp into itself".to_string(),
+            });
         }
         let (from_candidates, into_candidates) = self.board.merge_candidates(&at);
         if from_candidates.is_empty() || into_candidates.is_empty() {
-            bail!(ErrorKind::Internal(
-                "merge was called with an empty from or into candidates".to_string(),
-            ));
+            return Err(GameError::Internal {
+                message: "merge was called with an empty from or into candidates".to_string(),
+            });
         }
         if !from_candidates.contains(from) {
-            bail!(ErrorKind::InvalidInput(
-                format!("{} is not a valid corporation to be merged", from),
-            ));
+            return Err(GameError::InvalidInput {
+                message: format!("{} is not a valid corporation to be merged", from),
+            });
         }
         if !into_candidates.contains(into) {
-            bail!(ErrorKind::InvalidInput(
-                format!("{} is not a valid corporation to merge into", into),
-            ));
+            return Err(GameError::InvalidInput {
+                message: format!("{} is not a valid corporation to merge into", into),
+            });
         }
         if self.board.get_tile(at) == Tile::Unincorporated {
             // We just give the tile to the big corp now to make it visually obvious.
@@ -910,7 +928,7 @@ impl Game {
         }
     }
 
-    fn next_player_sell_trade(&mut self) -> Result<(Vec<Log>, bool)> {
+    fn next_player_sell_trade(&mut self) -> Result<(Vec<Log>, bool), GameError> {
         let (mut player, corp, into, at, turn_player) = match self.phase {
             Phase::SellOrTrade {
                 player,
@@ -939,7 +957,7 @@ impl Game {
         Ok((vec![], true))
     }
 
-    fn end_sell_trade_phase(&mut self) -> Result<(Vec<Log>, bool)> {
+    fn end_sell_trade_phase(&mut self) -> Result<(Vec<Log>, bool), GameError> {
         let (corp, into, at, turn_player) = match self.phase {
             Phase::SellOrTrade {
                 corp,
@@ -954,16 +972,20 @@ impl Game {
         self.choose_merger_phase(turn_player, at)
     }
 
-    pub fn handle_sell_command(&mut self, player: usize, n: usize) -> Result<(Vec<Log>, bool)> {
+    pub fn handle_sell_command(
+        &mut self,
+        player: usize,
+        n: usize,
+    ) -> Result<(Vec<Log>, bool), GameError> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
         let mut can_undo = true;
         let corp = match self.phase {
             Phase::SellOrTrade { corp, .. } => corp,
             _ => {
-                bail!(ErrorKind::InvalidInput(
-                    "can't sell or trade at the moment".to_string(),
-                ))
+                return Err(GameError::InvalidInput {
+                    message: "can't sell or trade at the moment".to_string(),
+                })
             }
         };
         let mut logs = self.sell(player, n, &corp)?;
@@ -979,11 +1001,11 @@ impl Game {
         Ok((logs, can_undo))
     }
 
-    fn sell(&mut self, player: usize, n: usize, corp: &Corp) -> Result<Vec<Log>> {
+    fn sell(&mut self, player: usize, n: usize, corp: &Corp) -> Result<Vec<Log>, GameError> {
         if n == 0 {
-            bail!(ErrorKind::InvalidInput(
-                "you must sell an amount greater than 0".to_string(),
-            ));
+            return Err(GameError::InvalidInput {
+                message: "you must sell an amount greater than 0".to_string(),
+            });
         }
         let money = corp.value(self.board.corp_size(corp)) * n;
         let player_shares = *self.players[player]
@@ -991,9 +1013,9 @@ impl Game {
             .get(corp)
             .expect("could not get player shares");
         if n > player_shares {
-            bail!(ErrorKind::InvalidInput(
-                "you don't have that many shares".to_string(),
-            ));
+            return Err(GameError::InvalidInput {
+                message: "you don't have that many shares".to_string(),
+            });
         }
         self.return_shares(player, n, corp)?;
         self.players[player].money += money;
@@ -1011,27 +1033,31 @@ impl Game {
         ])
     }
 
-    pub fn handle_trade_command(&mut self, player: usize, n: usize) -> Result<(Vec<Log>, bool)> {
+    pub fn handle_trade_command(
+        &mut self,
+        player: usize,
+        n: usize,
+    ) -> Result<(Vec<Log>, bool), GameError> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
         // Validate
         let (corp, into) = match self.phase {
             Phase::SellOrTrade { corp, into, .. } => (corp, into),
             _ => {
-                bail!(ErrorKind::InvalidInput(
-                    "not currently in a sell or trade phase".to_string(),
-                ));
+                return Err(GameError::InvalidInput {
+                    message: "not currently in a sell or trade phase".to_string(),
+                });
             }
         };
         if n == 0 {
-            bail!(ErrorKind::InvalidInput(
-                "you must specify an amount to trade greater than 0".to_string(),
-            ));
+            return Err(GameError::InvalidInput {
+                message: "you must specify an amount to trade greater than 0".to_string(),
+            });
         }
         if n % 2 != 0 {
-            bail!(ErrorKind::InvalidInput(
-                "you can only trade multiples of 2, trades are 2-for-1".to_string(),
-            ));
+            return Err(GameError::InvalidInput {
+                message: "you can only trade multiples of 2, trades are 2-for-1".to_string(),
+            });
         }
         let corp_shares = self.players[player]
             .shares
@@ -1039,9 +1065,9 @@ impl Game {
             .cloned()
             .expect("could not get player shares");
         if corp_shares < n {
-            bail!(ErrorKind::InvalidInput(
-                format!("you only have {} {}", corp_shares, corp),
-            ));
+            return Err(GameError::InvalidInput {
+                message: format!("you only have {} {}", corp_shares, corp),
+            });
         }
         let receive = n / 2;
         let into_shares = self.shares
@@ -1049,9 +1075,9 @@ impl Game {
             .cloned()
             .expect("could not get into shares");
         if receive > into_shares {
-            bail!(ErrorKind::InvalidInput(
-                format!("{} only has {} remaining", into, into_shares),
-            ));
+            return Err(GameError::InvalidInput {
+                message: format!("{} only has {} remaining", into, into_shares),
+            });
         }
 
         let mut can_undo = true;
@@ -1080,14 +1106,14 @@ impl Game {
         Ok((logs, can_undo))
     }
 
-    fn take_shares(&mut self, player: usize, n: usize, corp: &Corp) -> Result<()> {
+    fn take_shares(&mut self, player: usize, n: usize, corp: &Corp) -> Result<(), GameError> {
         let corp_shares = *self.shares
             .get(corp)
             .expect("could not get corp share count");
         if corp_shares < n {
-            bail!(ErrorKind::InvalidInput(
-                format!("{} only has {} left", corp, corp_shares),
-            ));
+            return Err(GameError::InvalidInput {
+                message: format!("{} only has {} left", corp, corp_shares),
+            });
         }
         let player_shares = self.players[player].shares.entry(*corp).or_insert(0);
         *player_shares += n;
@@ -1096,15 +1122,15 @@ impl Game {
         Ok(())
     }
 
-    fn return_shares(&mut self, player: usize, n: usize, corp: &Corp) -> Result<()> {
+    fn return_shares(&mut self, player: usize, n: usize, corp: &Corp) -> Result<(), GameError> {
         let player_shares = *self.players[player]
             .shares
             .get(corp)
             .expect("could not get player share count");
         if player_shares < n {
-            bail!(ErrorKind::InvalidInput(
-                format!("only has {} left", player_shares),
-            ));
+            return Err(GameError::InvalidInput {
+                message: format!("only has {} left", player_shares),
+            });
         }
         let player_shares = self.players[player].shares.entry(*corp).or_insert(0);
         *player_shares -= n;
@@ -1113,15 +1139,15 @@ impl Game {
         Ok(())
     }
 
-    pub fn handle_keep_command(&mut self, player: usize) -> Result<(Vec<Log>, bool)> {
+    pub fn handle_keep_command(&mut self, player: usize) -> Result<(Vec<Log>, bool), GameError> {
         self.assert_not_finished()?;
         self.assert_player_turn(player)?;
         let corp = match self.phase {
             Phase::SellOrTrade { corp, .. } => corp,
             _ => {
-                bail!(ErrorKind::InvalidInput(
-                    "not currently in a sell or trade phase".to_string(),
-                ))
+                return Err(GameError::InvalidInput {
+                    message: "not currently in a sell or trade phase".to_string(),
+                })
             }
         };
         let mut logs: Vec<Log> = vec![
@@ -1142,17 +1168,17 @@ impl Game {
         Ok((logs, can_undo))
     }
 
-    pub fn handle_end_command(&mut self, player: usize) -> Result<Vec<Log>> {
+    pub fn handle_end_command(&mut self, player: usize) -> Result<Vec<Log>, GameError> {
         self.assert_not_finished()?;
         if self.phase.main_turn_player() != player {
-            bail!(ErrorKind::InvalidInput(
-                "can't end the game during another player's turn".to_string(),
-            ));
+            return Err(GameError::InvalidInput {
+                message: "can't end the game during another player's turn".to_string(),
+            });
         }
         if self.pub_state().can_end() != CanEnd::True {
-            bail!(ErrorKind::InvalidInput(
-                "can't end the game at the moment".to_string(),
-            ));
+            return Err(GameError::InvalidInput {
+                message: "can't end the game at the moment".to_string(),
+            });
         }
         self.last_turn = true;
         Ok(vec![

@@ -1,4 +1,4 @@
-use brdgme_game::errors::*;
+use brdgme_game::errors::GameError;
 use brdgme_markup::Node as N;
 
 use std::iter::{self, FromIterator};
@@ -133,16 +133,16 @@ impl Board {
         }
     }
 
-    pub fn assert_loc_playable(&self, loc: &Loc) -> Result<()> {
+    pub fn assert_loc_playable(&self, loc: &Loc) -> Result<(), GameError> {
         if self.loc_neighbours_multiple_safe_corps(loc) {
-            bail!(ErrorKind::InvalidInput(
-                "can't merge multiple safe corporations".to_string(),
-            ));
+            return Err(GameError::InvalidInput {
+                message: "can't merge multiple safe corporations".to_string(),
+            });
         }
         if self.loc_founds(loc) && self.available_corps().is_empty() {
-            bail!(ErrorKind::InvalidInput(
-                "there are no available unincorporated corporations".to_string(),
-            ));
+            return Err(GameError::InvalidInput {
+                message: "there are no available unincorporated corporations".to_string(),
+            });
         }
         Ok(())
     }
