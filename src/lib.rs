@@ -1,4 +1,3 @@
-#![feature(conservative_impl_trait)]
 extern crate failure;
 extern crate rand;
 #[macro_use]
@@ -8,24 +7,24 @@ extern crate brdgme_color;
 extern crate brdgme_game;
 extern crate brdgme_markup;
 
-pub mod corp;
 pub mod board;
-mod render;
 mod command;
+pub mod corp;
+mod render;
 mod stats;
 
-use rand::{thread_rng, Rng};
-use brdgme_game::{CommandResponse, Gamer, Log, Status};
-use brdgme_game::errors::GameError;
 use brdgme_game::command::Spec as CommandSpec;
+use brdgme_game::errors::GameError;
 use brdgme_game::game::gen_placings;
+use brdgme_game::{CommandResponse, Gamer, Log, Status};
 use brdgme_markup::Node as N;
+use rand::{thread_rng, Rng};
 
 use std::collections::HashMap;
 
-use corp::Corp;
 use board::{Board, Loc, Tile};
 use command::Command;
+use corp::Corp;
 use stats::Stats;
 
 pub const MIN_PLAYERS: usize = 2;
@@ -203,16 +202,14 @@ impl Gamer for Game {
         let mut logs: Vec<Log> = vec![];
         if players == 2 {
             // 2 players gets a dummy shareholder, output details.
-            logs.push(Log::public(vec![
-                N::Bold(vec![
+            logs.push(Log::public(vec![N::Bold(vec![
                     N::text(
                         "\
 2 player special rule: a dummy player is added for shareholder bonuses. A dice (D6) is rolled to \
 determine the dummy player's shares. The money for the dummy player is not tracked and it is not \
 able to win the game."
                     ),
-                ]),
-            ]))
+                ])]))
         }
         logs.push(Log::public(vec![
             N::Player(start_player),
@@ -280,12 +277,10 @@ able to win the game."
             Command::Trade(n) => self.handle_trade_command(player, n),
             Command::Keep => self.handle_keep_command(player),
             Command::End => self.handle_end_command(player).map(|l| (l, false)),
-        }.map(|(logs, can_undo)| {
-            CommandResponse {
-                logs,
-                can_undo,
-                remaining_input: output.remaining.to_string(),
-            }
+        }.map(|(logs, can_undo)| CommandResponse {
+            logs,
+            can_undo,
+            remaining_input: output.remaining.to_string(),
         })
     }
 
@@ -426,13 +421,11 @@ impl Game {
                 })
             }
         };
-        let mut logs: Vec<Log> = vec![
-            Log::public(vec![
-                N::Player(player),
-                N::text(" played "),
-                N::Bold(vec![N::text(format!("{}", loc))]),
-            ]),
-        ];
+        let mut logs: Vec<Log> = vec![Log::public(vec![
+            N::Player(player),
+            N::text(" played "),
+            N::Bold(vec![N::text(format!("{}", loc))]),
+        ])];
         let neighbouring_corps = self.board.neighbouring_corps(loc);
         match neighbouring_corps.len() {
             1 => {
@@ -556,9 +549,11 @@ impl Game {
         }
         self.buy_phase(player);
         Ok((
-            vec![
-                Log::public(vec![N::Player(player), N::text(" founded "), corp.render()]),
-            ],
+            vec![Log::public(vec![
+                N::Player(player),
+                N::text(" founded "),
+                corp.render(),
+            ])],
             match self.phase {
                 Phase::Buy { .. } => true,
                 _ => false,
@@ -615,16 +610,14 @@ impl Game {
                     remaining: remaining - n,
                 };
                 Ok((
-                    vec![
-                        Log::public(vec![
-                            N::Player(player),
-                            N::text(" bought "),
-                            N::Bold(vec![N::text(format!("{} ", n))]),
-                            corp.render(),
-                            N::text(" for "),
-                            N::Bold(vec![N::text(format!("${}", price))]),
-                        ]),
-                    ],
+                    vec![Log::public(vec![
+                        N::Player(player),
+                        N::text(" bought "),
+                        N::Bold(vec![N::text(format!("{} ", n))]),
+                        corp.render(),
+                        N::text(" for "),
+                        N::Bold(vec![N::text(format!("${}", price))]),
+                    ])],
                     true,
                 ))
             }
@@ -652,12 +645,10 @@ impl Game {
         for corp in Corp::iter() {
             let size = self.board.corp_size(corp);
             if size > 0 {
-                logs.push(Log::public(vec![
-                    N::Bold(vec![
-                        N::text("Paying shareholder bonuses for "),
-                        corp.render(),
-                    ]),
-                ]));
+                logs.push(Log::public(vec![N::Bold(vec![
+                    N::text("Paying shareholder bonuses for "),
+                    corp.render(),
+                ])]));
                 logs.extend(self.pay_bonuses(corp));
                 for player in 0..self.players.len() {
                     let p_shares = *self.players[player]
@@ -692,27 +683,25 @@ impl Game {
     }
 
     fn redraw_hand(&mut self, player: usize) -> Result<(Vec<Log>, bool), GameError> {
-        let mut logs: Vec<Log> = vec![
-            Log::public(vec![
-                N::Player(player),
-                N::text(" has no playable tiles and will draw a new hand, discarded "),
-                N::Group(
-                    self.players[player]
-                        .tiles
-                        .iter()
-                        .enumerate()
-                        .flat_map(|(i, loc)| {
-                            let mut ns: Vec<N> = vec![];
-                            if i > 0 {
-                                ns.push(N::text(", "));
-                            }
-                            ns.push(loc.render());
-                            ns
-                        })
-                        .collect(),
-                ),
-            ]),
-        ];
+        let mut logs: Vec<Log> = vec![Log::public(vec![
+            N::Player(player),
+            N::text(" has no playable tiles and will draw a new hand, discarded "),
+            N::Group(
+                self.players[player]
+                    .tiles
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(i, loc)| {
+                        let mut ns: Vec<N> = vec![];
+                        if i > 0 {
+                            ns.push(N::text(", "));
+                        }
+                        ns.push(loc.render());
+                        ns
+                    })
+                    .collect(),
+            ),
+        ])];
         self.board.set_discarded(&self.players[player].tiles);
         self.players[player].tiles = vec![];
         let (rep_logs, has_finished) = self.draw_replacement_tiles(player)?;
@@ -782,13 +771,11 @@ impl Game {
             // Make sure we also consume any unincorporated tiles if required.
             self.board.extend_corp(&at, into);
         }
-        let mut logs = vec![
-            Log::public(vec![
-                from.render(),
-                N::text(" is merging into "),
-                into.render(),
-            ]),
-        ];
+        let mut logs = vec![Log::public(vec![
+            from.render(),
+            N::text(" is merging into "),
+            into.render(),
+        ])];
         self.players[player].stats.merges += 1;
         logs.extend(self.pay_bonuses(from));
         self.phase = Phase::SellOrTrade {
@@ -1021,16 +1008,14 @@ impl Game {
         self.players[player].money += money;
         self.players[player].stats.sell_sum += money;
         self.players[player].stats.sells += n;
-        Ok(vec![
-            Log::public(vec![
-                N::Player(player),
-                N::text(" sold "),
-                N::Bold(vec![N::text(format!("{} ", n))]),
-                corp.render(),
-                N::text(" for "),
-                N::Bold(vec![N::text(format!("${}", money))]),
-            ]),
-        ])
+        Ok(vec![Log::public(vec![
+            N::Player(player),
+            N::text(" sold "),
+            N::Bold(vec![N::text(format!("{} ", n))]),
+            corp.render(),
+            N::text(" for "),
+            N::Bold(vec![N::text(format!("${}", money))]),
+        ])])
     }
 
     pub fn handle_trade_command(
@@ -1087,17 +1072,15 @@ impl Game {
             receive * into.value(self.board.corp_size(&into));
         self.return_shares(player, n, &corp)?;
         self.take_shares(player, receive, &into)?;
-        let mut logs = vec![
-            Log::public(vec![
-                N::Player(player),
-                N::text(" traded "),
-                N::Bold(vec![N::text(format!("{} ", n))]),
-                corp.render(),
-                N::text(" for "),
-                N::Bold(vec![N::text(format!("{} ", receive))]),
-                into.render(),
-            ]),
-        ];
+        let mut logs = vec![Log::public(vec![
+            N::Player(player),
+            N::text(" traded "),
+            N::Bold(vec![N::text(format!("{} ", n))]),
+            corp.render(),
+            N::text(" for "),
+            N::Bold(vec![N::text(format!("{} ", receive))]),
+            into.render(),
+        ])];
         if n == corp_shares {
             let (new_logs, new_can_undo) = self.next_player_sell_trade()?;
             logs.extend(new_logs);
@@ -1150,19 +1133,15 @@ impl Game {
                 })
             }
         };
-        let mut logs: Vec<Log> = vec![
-            Log::public(vec![
-                N::Player(player),
-                N::text(" kept "),
-                N::Bold(vec![
-                    N::text(format!(
-                        "{} ",
-                        *self.players[player].shares.entry(corp,).or_insert(0,)
-                    )),
-                ]),
-                corp.render(),
-            ]),
-        ];
+        let mut logs: Vec<Log> = vec![Log::public(vec![
+            N::Player(player),
+            N::text(" kept "),
+            N::Bold(vec![N::text(format!(
+                "{} ",
+                *self.players[player].shares.entry(corp,).or_insert(0,)
+            ))]),
+            corp.render(),
+        ])];
         let (new_logs, can_undo) = self.next_player_sell_trade()?;
         logs.extend(new_logs);
         Ok((logs, can_undo))
@@ -1181,14 +1160,10 @@ impl Game {
             });
         }
         self.last_turn = true;
-        Ok(vec![
-            Log::public(vec![
-                N::Bold(vec![
-                    N::Player(player),
-                    N::text(" triggered the end of the game at the end of their turn"),
-                ]),
-            ]),
-        ])
+        Ok(vec![Log::public(vec![N::Bold(vec![
+            N::Player(player),
+            N::text(" triggered the end of the game at the end of their turn"),
+        ])])])
     }
 
     fn player_score(&self, player: usize) -> usize {

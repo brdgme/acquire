@@ -1,11 +1,16 @@
-extern crate brdgme_cmd;
 extern crate acquire;
+extern crate brdgme_cmd;
 
 use acquire::Game;
 use brdgme_cmd::cli::cli;
+use brdgme_cmd::requester;
 
 use std::io;
 
 fn main() {
-    cli::<Game, _, _>(io::stdin(), &mut io::stdout());
+    cli(
+        &mut requester::gamer::new::<Game>(),
+        io::stdin(),
+        &mut io::stdout(),
+    );
 }
