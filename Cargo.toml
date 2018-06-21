@@ -6,6 +6,7 @@ authors = ["Michael Alexander <beefsack@gmail.com>"]
 [dependencies]
 brdgme-game = { git = "https://github.com/brdgme/game.git" }
 brdgme-color = { git = "https://github.com/brdgme/color.git" }
+brdgme-fuzz = { git = "https://github.com/brdgme/fuzz.git" }
 brdgme-markup = { git = "https://github.com/brdgme/markup.git" }
 brdgme-cmd = { git = "https://github.com/brdgme/cmd.git" }
 brdgme-rand-bot = { git = "https://github.com/brdgme/rand-bot.git" }
