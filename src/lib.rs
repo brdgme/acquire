@@ -1,31 +1,24 @@
-extern crate failure;
-extern crate rand;
-#[macro_use]
-extern crate serde_derive;
-
-extern crate brdgme_color;
-extern crate brdgme_game;
-extern crate brdgme_markup;
-
 pub mod board;
 mod command;
 pub mod corp;
 mod render;
 mod stats;
 
+use rand::{thread_rng, Rng};
+use serde_derive::{Serialize, Deserialize};
+
 use brdgme_game::command::Spec as CommandSpec;
 use brdgme_game::errors::GameError;
 use brdgme_game::game::gen_placings;
 use brdgme_game::{CommandResponse, Gamer, Log, Status};
 use brdgme_markup::Node as N;
-use rand::{thread_rng, Rng};
 
 use std::collections::HashMap;
 
-use board::{Board, Loc, Tile};
-use command::Command;
-use corp::Corp;
-use stats::Stats;
+use crate::board::{Board, Loc, Tile};
+use crate::command::Command;
+use crate::corp::Corp;
+use crate::stats::Stats;
 
 pub const MIN_PLAYERS: usize = 2;
 pub const MAX_PLAYERS: usize = 6;
@@ -203,13 +196,13 @@ impl Gamer for Game {
         if players == 2 {
             // 2 players gets a dummy shareholder, output details.
             logs.push(Log::public(vec![N::Bold(vec![
-                    N::text(
-                        "\
+                N::text(
+                    "\
 2 player special rule: a dummy player is added for shareholder bonuses. A dice (D6) is rolled to \
 determine the dummy player's shares. The money for the dummy player is not tracked and it is not \
 able to win the game."
-                    ),
-                ])]))
+                ),
+            ])]))
         }
         logs.push(Log::public(vec![
             N::Player(start_player),
@@ -418,7 +411,7 @@ impl Game {
             None => {
                 return Err(GameError::InvalidInput {
                     message: "You don't have that tile".to_string(),
-                })
+                });
             }
         };
         let mut logs: Vec<Log> = vec![Log::public(vec![
@@ -529,7 +522,7 @@ impl Game {
             _ => {
                 return Err(GameError::InvalidInput {
                     message: "not able to found a corporation at the moment".to_string(),
-                })
+                });
             }
         };
         if !self.board.available_corps().contains(corp) {
@@ -671,13 +664,13 @@ impl Game {
             .iter()
             .find(|loc| self.board.assert_loc_playable(loc).is_ok())
             .is_none()
-        {
-            let (mut logs, has_ended) = self.redraw_hand(player)?;
-            if !has_ended {
-                logs.extend(self.start_turn(player)?);
+            {
+                let (mut logs, has_ended) = self.redraw_hand(player)?;
+                if !has_ended {
+                    logs.extend(self.start_turn(player)?);
+                }
+                return Ok(logs);
             }
-            return Ok(logs);
-        }
         self.phase = Phase::Play(player);
         Ok(vec![])
     }
@@ -741,7 +734,7 @@ impl Game {
             _ => {
                 return Err(GameError::InvalidInput {
                     message: "can't choose a merger at the moment".to_string(),
-                })
+                });
             }
         };
         if from == into {
@@ -972,7 +965,7 @@ impl Game {
             _ => {
                 return Err(GameError::InvalidInput {
                     message: "can't sell or trade at the moment".to_string(),
-                })
+                });
             }
         };
         let mut logs = self.sell(player, n, &corp)?;
@@ -980,11 +973,11 @@ impl Game {
             .shares
             .get(&corp)
             .expect("could not get player shares") == 0
-        {
-            let (new_logs, new_can_undo) = self.next_player_sell_trade()?;
-            logs.extend(new_logs);
-            can_undo = new_can_undo;
-        }
+            {
+                let (new_logs, new_can_undo) = self.next_player_sell_trade()?;
+                logs.extend(new_logs);
+                can_undo = new_can_undo;
+            }
         Ok((logs, can_undo))
     }
 
@@ -1130,7 +1123,7 @@ impl Game {
             _ => {
                 return Err(GameError::InvalidInput {
                     message: "not currently in a sell or trade phase".to_string(),
-                })
+                });
             }
         };
         let mut logs: Vec<Log> = vec![Log::public(vec![
@@ -1138,7 +1131,7 @@ impl Game {
             N::text(" kept "),
             N::Bold(vec![N::text(format!(
                 "{} ",
-                *self.players[player].shares.entry(corp,).or_insert(0,)
+                *self.players[player].shares.entry(corp).or_insert(0)
             ))]),
             corp.render(),
         ])];

@@ -1,3 +1,5 @@
+use serde_derive::{Serialize, Deserialize};
+
 use brdgme_game::errors::GameError;
 use brdgme_markup::Node as N;
 
@@ -6,7 +8,7 @@ use std::ops::Range;
 use std::fmt;
 use std::collections::HashSet;
 
-use corp::{self, Corp};
+use crate::corp::{self, Corp};
 
 pub const WIDTH: usize = 12;
 pub const HEIGHT: usize = 9;
@@ -301,7 +303,7 @@ impl From<Loc> for usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use corp::Corp;
+    use crate::corp::Corp;
 
     #[test]
     fn usize_into_loc_works() {

@@ -1,10 +1,10 @@
 use brdgme_game::command::parser::*;
 use brdgme_game::Gamer;
 
-use board::Loc;
-use corp::{Corp, CORPS};
-use Game;
-use Phase;
+use crate::board::Loc;
+use crate::corp::{Corp, CORPS};
+use crate::Game;
+use crate::Phase;
 
 use std::usize;
 

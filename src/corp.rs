@@ -1,3 +1,5 @@
+use serde_derive::{Serialize, Deserialize};
+
 use brdgme_color::*;
 use brdgme_markup::Node as N;
 

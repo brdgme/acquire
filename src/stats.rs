@@ -1,8 +1,10 @@
+use serde_derive::{Serialize, Deserialize};
+
 use brdgme_game::Stat;
 
 use std::collections::HashMap;
 
-use Corp;
+use crate::Corp;
 
 #[derive(Default, Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct Stats {

@@ -1,6 +1,3 @@
-extern crate acquire;
-extern crate brdgme_cmd;
-
 use acquire::Game;
 use brdgme_cmd::cli::cli;
 use brdgme_cmd::requester;

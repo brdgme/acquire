@@ -2,12 +2,12 @@ use brdgme_game::Renderer;
 use brdgme_markup::{row_pad, Align as A, Node as N, Row};
 use brdgme_color::*;
 
-use PlayerState;
-use PubState;
-use board::{self, Board, Loc, Tile};
-use corp::{Corp, GAME_END_SIZE, MAJOR_MULT, MINOR_MULT};
-use CanEnd;
-use CanEndFalse;
+use crate::PlayerState;
+use crate::PubState;
+use crate::board::{self, Board, Loc, Tile};
+use crate::corp::{Corp, GAME_END_SIZE, MAJOR_MULT, MINOR_MULT};
+use crate::CanEnd;
+use crate::CanEndFalse;
 
 use std::iter::repeat;
 

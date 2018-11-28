@@ -2,6 +2,7 @@
 name = "acquire"
 version = "0.1.0"
 authors = ["Michael Alexander <beefsack@gmail.com>"]
+edition = "2018"
 
 [dependencies]
 brdgme-game = { git = "https://github.com/brdgme/game.git" }
